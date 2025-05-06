@@ -36,7 +36,31 @@ if os.environ.get("CAPITAL_MCP_DEBUG", "0") == "1":
 mcp = FastMCP(
     name="capital-com-mcp-server",
     description="Capital.com MCP Server for trading operations",
-    version="0.1.2"
+    instructions="""
+    # Capital.com MCP Server
+
+    This server provides tools to interact with the Capital.com trading API.
+
+    ## Best Practices
+
+    - Authenticate before using other tools
+    - Use search_markets to find available markets
+    - Check account information before creating positions
+    - Always specify stop loss and take profit levels when creating positions
+    - Monitor open positions regularly
+
+    ## Tool Selection Guide
+
+    - Use `authenticate` when: You need to authenticate with Capital.com API
+    - Use `get_account_info` when: You need to check account balance or details
+    - Use `search_markets` when: You need to find available markets to trade
+    - Use `get_prices` when: You need current price information for a specific instrument
+    - Use `get_historical_prices` when: You need historical price data with custom time resolution
+    - Use `get_positions` when: You need to check open positions
+    - Use `create_position` when: You want to open a new trading position
+    - Use `close_position` when: You want to close an existing position
+    - Use `get_watchlists` when: You want to see saved watchlists
+    """
 )
 
 # Initialize client and authentication state
