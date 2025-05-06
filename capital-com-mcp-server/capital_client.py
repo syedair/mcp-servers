@@ -3,7 +3,7 @@ import re
 import requests
 import json
 import logging
-from dotenv import load_dotenv
+import sys
 from typing import Dict, List, Optional, Union, Any
 
 # Configure logging
@@ -15,13 +15,33 @@ class CapitalClient:
     """
     
     def __init__(self):
-        """Initialize the Capital.com client with credentials from .env file"""
-        load_dotenv()
-        
+        """Initialize the Capital.com client with credentials from environment variables"""
+        # Get credentials directly from environment variables
         self.base_url = os.getenv("CAPITAL_BASE_URL")
         self.api_key = os.getenv("CAPITAL_API_KEY")
         self.password = os.getenv("CAPITAL_PASSWORD")
         self.identifier = os.getenv("CAPITAL_IDENTIFIER")
+        
+        # Check if required environment variables are set
+        missing_vars = []
+        if not self.base_url:
+            missing_vars.append("CAPITAL_BASE_URL")
+        if not self.api_key:
+            missing_vars.append("CAPITAL_API_KEY")
+        if not self.password:
+            missing_vars.append("CAPITAL_PASSWORD")
+        if not self.identifier:
+            missing_vars.append("CAPITAL_IDENTIFIER")
+            
+        if missing_vars:
+            logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+            print(f"ERROR: Missing required environment variables: {', '.join(missing_vars)}")
+            print("Please set these environment variables before running the server.")
+            print("Example:")
+            print("  export CAPITAL_BASE_URL=https://demo-api-capital.backend-capital.com")
+            print("  export CAPITAL_API_KEY=your_api_key_here")
+            print("  export CAPITAL_PASSWORD=your_password_here")
+            print("  export CAPITAL_IDENTIFIER=your_email@example.com  # Email address used for your Capital.com account")
         
         # Session tokens that will be populated after authentication
         self.session_token = os.getenv("CAPITAL_SESSION_TOKEN", "")

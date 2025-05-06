@@ -66,7 +66,6 @@ mcp = FastMCP(
     """,
     dependencies=[
         'requests',
-        'python-dotenv',
     ],
 )
 

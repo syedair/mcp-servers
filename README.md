@@ -18,16 +18,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 2. uv's on-the-fly dependency installation doesn't require creating a virtual environment beforehand, making setup much simpler.
 
-3. Configure your `.env` file with your Capital.com credentials:
+3. Configure your environment variables with your Capital.com credentials:
 
-```
-CAPITAL_BASE_URL=https://demo-api-capital.backend-capital.com
-CAPITAL_API_KEY=your_api_key_here
-CAPITAL_PASSWORD=your_password_here
-CAPITAL_IDENTIFIER=your_identifier_here
-CAPITAL_SESSION_TOKEN=
-CAPITAL_SECURITY_TOKEN=
-CAPITAL_CST=
+```bash
+export CAPITAL_BASE_URL=https://demo-api-capital.backend-capital.com
+export CAPITAL_API_KEY=your_api_key_here
+export CAPITAL_PASSWORD=your_password_here
+export CAPITAL_IDENTIFIER=your_email@example.com
 ```
 
 4. You can install this server in [Claude Desktop](https://claude.ai/desktop) and interact with it right away by running:
@@ -49,8 +46,6 @@ The MCP configuration needs to be added to `~/.aws/amazonq/mcp.json` with the fo
         "run",
         "--with",
         "mcp[cli]",
-        "--with",
-        "python-dotenv",
         "--with",
         "requests",
         "mcp",
@@ -138,7 +133,7 @@ This log file contains information about the server's operation, including any e
 You can also run the MCP server with debug logging enabled:
 ```bash
 cd ~/mcp-servers/capital-com-mcp-server
-uv run --with mcp[cli] --with python-dotenv --with requests capital-mcp-server.py --debug
+uv run --with mcp[cli] --with requests capital-mcp-server.py --debug
 ```
 
 ### Package Management Troubleshooting
@@ -147,7 +142,7 @@ If you're using [uv](https://github.com/astral-sh/uv) and encounter dependency i
 
 ```bash
 # Update all dependencies to their latest compatible versions
-uv pip install --upgrade requests python-dotenv fastmcp pydantic
+uv pip install --upgrade requests fastmcp pydantic
 
 # Check for outdated packages
 uv pip list --outdated
@@ -159,7 +154,7 @@ uv pip freeze > requirements.txt
 Or run the server with the SSE transport for easier debugging:
 ```bash
 cd ~/mcp-servers/capital-com-mcp-server
-uv run --with mcp[cli] --with python-dotenv --with requests capital-mcp-server.py --sse --port 8080
+uv run --with mcp[cli] --with requests capital-mcp-server.py --sse --port 8080
 ```
 
 And run Amazon Q with trace logging enabled:
