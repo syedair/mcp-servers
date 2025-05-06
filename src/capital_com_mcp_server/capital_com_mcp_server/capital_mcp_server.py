@@ -13,7 +13,7 @@ from typing import Dict, Any, List, Optional, Union
 import pathlib
 
 # Import the Capital.com client
-from capital_com_mcp_server.capital_client import CapitalClient
+from .capital_client import CapitalClient
 
 # Import FastMCP
 from mcp.server.fastmcp import Context, FastMCP
@@ -36,7 +36,7 @@ if os.environ.get("CAPITAL_MCP_DEBUG", "0") == "1":
 mcp = FastMCP(
     name="capital-com-mcp-server",
     description="Capital.com MCP Server for trading operations",
-    version="0.1.0"
+    version="0.1.2"
 )
 
 # Initialize client and authentication state
