@@ -106,15 +106,18 @@ mcp-servers/
     │   ├── README.md
     │   ├── pyproject.toml
     │   ├── setup.py
-    │   ├── __init__.py
-    │   ├── capital_mcp_server.py
-    │   ├── capital_client.py
+    │   ├── capital_com_mcp_server/
+    │   │   ├── __init__.py
+    │   │   ├── capital_mcp_server.py
+    │   │   └── capital_client.py
     │   └── ...
     └── other_mcp_server/
         ├── README.md
         ├── pyproject.toml
         ├── setup.py
-        ├── __init__.py
+        ├── other_mcp_server/
+        │   ├── __init__.py
+        │   └── ...
         └── ...
 ```
 
