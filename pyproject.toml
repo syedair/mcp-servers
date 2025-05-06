@@ -29,3 +29,6 @@ dependencies = [
 
 [project.scripts]
 capital-com-mcp = "capital_com_mcp_server.capital_mcp_server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/capital_com_mcp_server"]
