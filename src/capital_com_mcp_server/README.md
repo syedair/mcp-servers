@@ -37,7 +37,7 @@ The MCP server requires the following environment variables:
 You can run the MCP server manually with various options:
 
 ```bash
-capital-com-mcp --help
+capital-com-mcp-server --help
 ```
 
 Available options:
@@ -98,6 +98,66 @@ Successfully created a BUY position for Apple Inc. (AAPL):
 - Opening price: $184.30
 - Position status: OPEN
 ```
+
+## Prerequisites for using with LLMs
+
+Make sure you have `uv` installed on your system:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+## Using with Amazon Q
+
+1. Create an `mcp.json` configuration file in your Amazon Q configuration directory (`~/.aws/amazonq/mcp.json`):
+   ```json
+   {
+     "mcpServers": {
+       "capital-com-mcp-server": {
+         "command": "uvx",
+         "args": ["capital-com-mcp-server"],
+         "env": {
+           "CAPITAL_BASE_URL": "https://demo-api-capital.backend-capital.com",
+           "CAPITAL_API_KEY": "your_api_key_here",
+           "CAPITAL_PASSWORD": "your_password_here",
+           "CAPITAL_IDENTIFIER": "your_email@example.com",
+           "FASTMCP_LOG_LEVEL": "ERROR"
+         }
+       }
+     }
+   }
+   ```
+
+2. Run Amazon Q with:
+   ```bash
+   q chat
+   ```
+
+3. Amazon Q will automatically start the MCP server and connect to it.
+
+## Using with Claude Desktop
+
+1. In Claude Desktop, go to Settings > Developer section and click on "Edit Config"
+   
+2. This will open the configuration file. Add the following to the JSON:
+   ```json
+   {
+     "mcpServers": {
+       "capital-com-mcp-server": {
+         "command": "uvx",
+         "args": ["capital-com-mcp-server"],
+         "env": {
+           "CAPITAL_BASE_URL": "https://demo-api-capital.backend-capital.com",
+           "CAPITAL_API_KEY": "your_api_key_here",
+           "CAPITAL_PASSWORD": "your_password_here",
+           "CAPITAL_IDENTIFIER": "your_email@example.com",
+           "FASTMCP_LOG_LEVEL": "ERROR"
+         }
+       }
+     }
+   }
+   ```
+
 
 ## Resources
 
