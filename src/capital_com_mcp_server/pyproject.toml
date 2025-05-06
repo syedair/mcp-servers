@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "capital-com-mcp-server"
-version = "0.1.4"
+version = "0.1.5"
 description = "Capital.com MCP Server for Amazon Q and other LLMs"
 readme = "README.md"
 authors = [
@@ -28,7 +28,7 @@ dependencies = [
 "Bug Tracker" = "https://github.com/syedair/mcp-servers/issues"
 
 [project.scripts]
-capital-com-mcp-server = "capital_com_mcp_server.capital_mcp_server:main"
+capital-com-mcp-server = "capital_mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["capital_com_mcp_server"]
