@@ -6,15 +6,23 @@ This is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introdu
 
 The following tools are exposed by the MCP server:
 
-- `authenticate`: Authenticate with Capital.com API
-- `get_account_info`: Get account information
-- `search_markets`: Search for markets (e.g., EURUSD, AAPL)
-- `get_prices`: Get prices for a specific instrument
-- `get_positions`: Get all open positions
-- `create_position`: Create a new trading position
-- `close_position`: Close an open position
-- `update_position`: Update an existing position (stop loss, take profit)
-- `get_watchlists`: Get all watchlists
+- `get_account_info`: Get account information and balance
+- `search_markets`: Search for markets/instruments (supports both search terms and epic codes)
+- `get_prices`: Get current prices with configurable time resolution (MINUTE, HOUR, DAY, etc.)
+- `get_historical_prices`: Get historical price data with custom time ranges and resolution
+- `get_positions`: Get all open trading positions
+- `create_position`: Create a new trading position (buy/sell) with optional stop loss and take profit
+- `close_position`: Close an open position by deal ID
+- `update_position`: Update position stop loss or take profit levels
+- `get_watchlists`: Get all saved watchlists
+
+## ✨ Key Features
+
+- **Automatic Authentication**: Handles login and session token refresh automatically
+- **Enhanced Search**: Search markets by name or use specific epic codes (e.g., "Apple" or "AAPL")
+- **Multiple Time Resolutions**: MINUTE, HOUR, DAY, WEEK for price data
+- **Robust Error Handling**: Built-in retry logic for expired sessions
+- **No Manual Auth**: No separate authentication tool needed - handled behind the scenes
 
 ## Configuration
 
@@ -32,19 +40,26 @@ The MCP server requires the following environment variables:
 - `CAPITAL_MCP_DEBUG`: Set to `1` to enable debug logging
 - `FASTMCP_LOG_LEVEL`: Set to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` to control logging level
 
-## Running Manually
+## Installation & Setup
 
-You can run the MCP server manually with various options:
+### Install via pip
 
 ```bash
-capital-com-mcp-server --help
+pip install capital-com-mcp-server
 ```
 
-Available options:
-- `--sse`: Use SSE transport
-- `--port PORT`: Port to run the server on (default: 8080)
-- `--debug`: Enable debug logging
-- `--log-dir LOG_DIR`: Directory to store log files
+### Running Manually
+
+```bash
+# Run with stdio transport (default)
+capital-com-mcp-server
+
+# Run with debug logging
+capital-com-mcp-server --debug
+
+# Get help with all options
+capital-com-mcp-server --help
+```
 
 ## Example Usage
 
@@ -55,7 +70,7 @@ You: Search for Apple stock on Capital.com
 
 AI: I'll search for Apple stock on Capital.com for you.
 
-[Uses capital-com-mcp-server___search_markets tool]
+[Uses search_markets tool]
 
 I found Apple Inc. (AAPL) on Capital.com. Here are the details:
 - Epic: AAPL
@@ -65,6 +80,21 @@ I found Apple Inc. (AAPL) on Capital.com. Here are the details:
 - Market status: OPEN
 ```
 
+### Getting Historical Price Data
+
+```
+You: Show me Tesla's daily price data for the last week
+
+AI: I'll get Tesla's daily price data for you.
+
+[Uses get_prices with epic="TSLA" and resolution="DAY"]
+
+Tesla (TSLA) daily prices:
+- Day 1: Open $248.50, Close $252.30, High $254.80, Low $247.90
+- Day 2: Open $252.30, Close $249.75, High $253.20, Low $248.40
+- Volume and price trends show recent volatility
+```
+
 ### Getting Account Information
 
 ```
@@ -72,7 +102,7 @@ You: What's my account balance on Capital.com?
 
 AI: Let me check your Capital.com account information.
 
-[Uses capital-com-mcp-server___get_account_info tool]
+[Uses get_account_info tool]
 
 Your Capital.com account information:
 - Account ID: ABC123456
@@ -90,7 +120,7 @@ You: Buy 10 shares of Apple stock
 
 AI: I'll create a buy position for Apple stock on Capital.com.
 
-[Uses capital-com-mcp-server___create_position tool]
+[Uses create_position tool]
 
 Successfully created a BUY position for Apple Inc. (AAPL):
 - Deal ID: DEF789012
