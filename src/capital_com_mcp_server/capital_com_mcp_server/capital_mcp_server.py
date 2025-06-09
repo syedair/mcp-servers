@@ -9,11 +9,15 @@ import logging
 import os
 import sys
 import re
+import requests
 from typing import Dict, Any, List, Optional, Union
 import pathlib
 
 # Import the Capital.com client
-from .capital_client import CapitalClient
+try:
+    from .capital_client import CapitalClient
+except ImportError:
+    from capital_client import CapitalClient
 
 # Import FastMCP
 from mcp.server.fastmcp import Context, FastMCP
@@ -43,22 +47,42 @@ mcp = FastMCP(
 
     ## Best Practices
 
-    - Authenticate before using other tools
-    - Use search_markets to find available markets
+    - Authentication happens automatically using environment variables
+    - Use search_markets to find available markets and epics
     - Check account information before creating positions
-    - Always specify stop loss and take profit levels when creating positions
+    - Consider using stop loss and take profit levels when creating positions (optional but recommended)
     - Monitor open positions regularly
+
+    ## Position Management Workflow
+
+    **IMPORTANT**: Position creation and management requires understanding the difference between dealReference and dealId:
+
+    1. **Creating Positions**: `create_position` returns a `dealReference` (order reference starting with 'o_')
+    2. **Getting dealId**: After creation, call `get_positions` to find the new position and get its `dealId`
+    3. **Managing Positions**: Use the `dealId` (not dealReference) for `close_position` and `update_position`
+
+    **Example Workflow**:
+    ```
+    1. result = create_position(epic="TSLA", direction="BUY", size=0.1)
+       → Returns: {"dealReference": "o_abc123..."}
+    
+    2. positions = get_positions()
+       → Find position with matching epic/size/direction
+       → Get the dealId from position.position.dealId
+    
+    3. close_position(deal_id=dealId) or update_position(deal_id=dealId, ...)
+    ```
 
     ## Tool Selection Guide
 
-    - Use `authenticate` when: You need to authenticate with Capital.com API
     - Use `get_account_info` when: You need to check account balance or details
-    - Use `search_markets` when: You need to find available markets to trade
+    - Use `search_markets` when: You need to find available markets to trade and epics
     - Use `get_prices` when: You need current price information for a specific instrument
     - Use `get_historical_prices` when: You need historical price data with custom time resolution
-    - Use `get_positions` when: You need to check open positions
-    - Use `create_position` when: You want to open a new trading position
-    - Use `close_position` when: You want to close an existing position
+    - Use `get_positions` when: You need to check open positions OR get dealId after creating a position
+    - Use `create_position` when: You want to open a new trading position (returns dealReference)
+    - Use `update_position` when: You want to modify stop loss or take profit levels (requires dealId from get_positions)
+    - Use `close_position` when: You want to close an existing position (requires dealId from get_positions)
     - Use `get_watchlists` when: You want to see saved watchlists
     """
 )
@@ -72,46 +96,15 @@ client = CapitalClient(
 )
 authenticated = False
 
-@mcp.tool()
-async def authenticate(ctx: Context) -> Dict[str, Any]:
-    """Authenticate with Capital.com API.
-    
-    This tool authenticates with the Capital.com API using the credentials
-    provided in environment variables.
-    
-    Returns:
-        Dict[str, Any]: Authentication result
-    """
-    global authenticated, client
-    
-    logger.info("Invoking authenticate tool")
-    
-    try:
-        result = client.authenticate()
-        authenticated = result
-        
-        if authenticated:
-            await ctx.info("Successfully authenticated with Capital.com API")
-            return {"success": True, "message": "Authentication successful"}
-        else:
-            error_msg = "Authentication failed. Please check your credentials."
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return {"success": False, "error": error_msg}
-    
-    except Exception as e:
-        error_msg = f"Error during authentication: {type(e).__name__}"
-        logger.error(error_msg, exc_info=True)
-        await ctx.error("Authentication failed. Please check your credentials and try again.")
-        return {"success": False, "error": str(e)}
+# Helper function to handle authentication and retries
+
 
 @mcp.tool()
 async def get_account_info(ctx: Context) -> Dict[str, Any]:
     """Get account information from Capital.com.
-    
-    This tool retrieves account information including balance, margin, profit/loss,
-    and other account details.
-    
+
+    This tool retrieves account information including balance, open positions, and account details.
+
     Returns:
         Dict[str, Any]: Account information
     """
@@ -119,136 +112,190 @@ async def get_account_info(ctx: Context) -> Dict[str, Any]:
     
     logger.info("Invoking get_account_info tool")
     
-    # Check if authenticated
-    if not authenticated:
-        logger.info("Not authenticated yet, attempting authentication")
-        auth_result = client.authenticate()
-        authenticated = auth_result
-        if not authenticated:
-            error_msg = "Authentication required before using this tool"
-            logger.error(error_msg)
-            await ctx.error("Authentication required. Please authenticate first.")
-            return {"error": "Authentication required"}
     
     try:
-        result = client.get_account_info()
+        # Ensure we're authenticated before making any request
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
         
-        if "error" in result:
-            await ctx.error(f"Failed to get account info: {result['error']}")
-            return result
-            
-        return result
+        # Client method now handles re-authentication automatically
+        account_info = client.get_account_info()
+        return account_info
     
     except Exception as e:
-        error_msg = f"Error getting account info: {type(e).__name__}"
+        error_msg = f"Error getting account info: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        await ctx.error("Failed to get account information. Please try again.")
-        return {"error": "Failed to get account information"}
+        await ctx.error(error_msg)
+        return {"error": str(e)}
 
 @mcp.tool()
 async def search_markets(
     ctx: Context,
-    query: str = Field(description="Search query (e.g., 'EURUSD', 'Apple', 'Gold')"),
-    limit: int = Field(10, description="Maximum number of results to return")
+    search_term: Optional[str] = Field(default=None, description="Search term (e.g., 'silver', 'Apple', 'Gold')"),
+    epics: Optional[str] = Field(default=None, description="Comma-separated epics (e.g., 'SILVER,NATURALGAS', max 50)"),
+    limit: int = Field(default=10, description="Maximum number of results to return"),
 ) -> Dict[str, Any]:
     """Search for markets on Capital.com.
-    
-    This tool searches for markets (instruments) on Capital.com based on a query string.
-    
+
+    This tool searches for markets (instruments) on Capital.com. You can search by term or specific epics.
+    If both search_term and epics are provided, search_term takes priority.
+
     Args:
         ctx: MCP context
-        query: Search query (e.g., 'EURUSD', 'Apple', 'Gold')
+        search_term: Search term to find markets (optional)
+        epics: Comma-separated epic identifiers, max 50 (optional)
         limit: Maximum number of results to return
         
     Returns:
-        Dict[str, Any]: Search results
+        Dict[str, Any]: Market search results
     """
     global authenticated, client
     
-    logger.info(f"Invoking search_markets tool with query: {query}")
+    logger.info(f"Invoking search_markets tool with search_term: {search_term}, epics: {epics}")
     
-    # Validate inputs
-    if not query or len(query.strip()) == 0:
-        validation_error = "Search query cannot be empty"
-        logger.error(validation_error)
-        await ctx.error(validation_error)
-        return {"error": validation_error}
     
-    if limit < 1 or limit > 100:
-        validation_error = "Limit must be between 1 and 100"
-        logger.error(validation_error)
-        await ctx.error(validation_error)
-        return {"error": validation_error}
+    # Note: If both parameters are None, API will return all available markets
     
-    # Check if authenticated
-    if not authenticated:
-        logger.info("Not authenticated yet, attempting authentication")
-        auth_result = client.authenticate()
-        authenticated = auth_result
-        if not authenticated:
-            error_msg = "Authentication required before using this tool"
+    # Validate epics limit if provided
+    if epics is not None:
+        epic_list = [epic.strip() for epic in epics.split(',') if epic.strip()]
+        if len(epic_list) > 50:
+            error_msg = "Maximum 50 epics allowed"
             logger.error(error_msg)
-            await ctx.error("Authentication required. Please authenticate first.")
-            return {"error": "Authentication required"}
+            await ctx.error(error_msg)
+            return {"error": error_msg}
     
     try:
-        result = client.search_markets(query, limit)
+        # Ensure we're authenticated before making any request
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
         
-        if "error" in result:
-            await ctx.error(f"Failed to search markets: {result['error']}")
-            return result
+        # Client method now handles re-authentication automatically
+        result = client.search_markets(search_term, epics, limit)
+        
+        # Handle different response formats: epics returns "marketDetails", search returns "markets"
+        if "marketDetails" in result:
+            # Convert marketDetails format to markets format for consistency
+            market_details = result["marketDetails"]
+            markets = []
+            
+            for detail in market_details:
+                instrument = detail.get("instrument", {})
+                snapshot = detail.get("snapshot", {})
+                
+                # Convert to markets format
+                market = {
+                    "instrumentName": instrument.get("name", ""),
+                    "epic": instrument.get("epic", ""),
+                    "symbol": instrument.get("symbol", ""),
+                    "instrumentType": instrument.get("type", ""),
+                    "marketStatus": snapshot.get("marketStatus", ""),
+                    "lotSize": instrument.get("lotSize", 1),
+                    "bid": snapshot.get("bid"),
+                    "offer": snapshot.get("offer"),
+                    "high": snapshot.get("high"),
+                    "low": snapshot.get("low"),
+                    "percentageChange": snapshot.get("percentageChange"),
+                    "netChange": snapshot.get("netChange"),
+                    "updateTime": snapshot.get("updateTime"),
+                    "delayTime": snapshot.get("delayTime", 0),
+                    "streamingPricesAvailable": instrument.get("streamingPricesAvailable", False),
+                    "scalingFactor": snapshot.get("scalingFactor", 1),
+                    "marketModes": snapshot.get("marketModes", [])
+                }
+                
+                # Remove None values
+                market = {k: v for k, v in market.items() if v is not None}
+                markets.append(market)
+            
+            result = {"markets": markets}
+        
+        # Limit the number of results if needed
+        if "markets" in result and len(result["markets"]) > limit:
+            result["markets"] = result["markets"][:limit]
+            result["markets_truncated"] = True
             
         return result
     
     except Exception as e:
-        error_msg = f"Error searching markets: {type(e).__name__}"
+        error_msg = f"Error searching markets: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        await ctx.error(f"Failed to search for '{query}'. Please try again.")
-        return {"error": f"Failed to search for '{query}'"}
+        await ctx.error(error_msg)
+        return {"error": str(e)}
 
 @mcp.tool()
 async def get_prices(
     ctx: Context,
     epic: str = Field(description="The epic identifier for the instrument"),
-    resolution: str = Field("MINUTE", description="Time resolution (MINUTE, HOUR_4, DAY, WEEK)"),
-    limit: int = Field(10, description="Number of price points to retrieve")
+    resolution: str = Field(default=None, description="Time resolution (optional, e.g., MINUTE, HOUR, DAY)"),
 ) -> Dict[str, Any]:
-    """Get historical prices for an instrument.
-    
-    This tool retrieves historical price data for a specific instrument.
-    
+    """Get prices for a specific instrument.
+
+    This tool retrieves current price information for a specific instrument.
+
     Args:
         ctx: MCP context
         epic: The epic identifier for the instrument
-        resolution: Time resolution (MINUTE, HOUR_4, DAY, WEEK)
-        limit: Number of price points to retrieve
-        
+        resolution: Time resolution (optional)
+
     Returns:
-        Dict[str, Any]: Price data
+        Dict[str, Any]: Price information for the instrument
     """
     global authenticated, client
     
     logger.info(f"Invoking get_prices tool for epic: {epic}")
     
-    # Validate inputs
-    if not epic or len(epic.strip()) == 0:
-        validation_error = "Epic identifier cannot be empty"
-        logger.error(validation_error)
-        await ctx.error(validation_error)
-        return {"error": validation_error}
+    try:
+        prices = client.get_prices(epic, resolution)
+        return prices
     
-    valid_resolutions = ["MINUTE", "MINUTE_5", "MINUTE_15", "MINUTE_30", "HOUR", "HOUR_4", "DAY", "WEEK"]
-    if resolution not in valid_resolutions:
-        validation_error = f"Invalid resolution. Must be one of: {', '.join(valid_resolutions)}"
-        logger.error(validation_error)
-        await ctx.error(validation_error)
-        return {"error": validation_error}
+    except Exception as e:
+        error_msg = f"Error getting prices: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def get_historical_prices(
+    ctx: Context,
+    epic: str = Field(description="The epic identifier for the instrument. You need to get this from the markets api"),
+    resolution: str = Field(description="Time resolution: MINUTE, MINUTE_5, MINUTE_15, MINUTE_30, HOUR, HOUR_4, DAY, WEEK"),
+    max: Optional[int] = Field(default=None, description="Maximum number of bars to return (default: 10, max: 1000)"),
+    from_date: Optional[str] = Field(default=None, description="Start date in ISO format (e.g., '2022-02-24T00:00:00')"),
+    to_date: Optional[str] = Field(default=None, description="End date in ISO format"),
+) -> Dict[str, Any]:
+    """Get historical price data for a specific instrument.
+
+    This tool retrieves historical price data for a specific instrument with custom granularity.
+
+    Args:
+        ctx: MCP context
+        epic: The epic identifier for the instrument. You need to get this from the markets api
+        resolution: Time resolution (MINUTE, MINUTE_5, MINUTE_15, MINUTE_30, HOUR, HOUR_4, DAY, WEEK)
+        max: Maximum number of bars to return (default: 10, max: 1000)
+        from_date: Start date in ISO format (e.g., "2022-02-24T00:00:00")
+        to_date: End date in ISO format (optional)
+
+    Returns:
+        Dict[str, Any]: Historical price information for the instrument
+    """
+    global authenticated, client
     
-    if limit < 1 or limit > 1000:
-        validation_error = "Limit must be between 1 and 1000"
-        logger.error(validation_error)
-        await ctx.error(validation_error)
-        return {"error": validation_error}
+    logger.info(f"Invoking get_historical_prices tool for epic: {epic}, resolution: {resolution}")
     
     # Check if authenticated
     if not authenticated:
@@ -256,25 +303,29 @@ async def get_prices(
         auth_result = client.authenticate()
         authenticated = auth_result
         if not authenticated:
-            error_msg = "Authentication required before using this tool"
             logger.error(error_msg)
-            await ctx.error("Authentication required. Please authenticate first.")
-            return {"error": "Authentication required"}
+            await ctx.error(error_msg)
+            return {"error": error_msg}
     
     try:
-        result = client.get_prices(epic, resolution, limit)
+        # Set default for max if not provided (API default is 10)
+        max_value = max if max is not None else 10
+        
+        result = client.get_historical_prices(epic, resolution, max_value, from_date, to_date)
         
         if "error" in result:
-            await ctx.error(f"Failed to get prices: {result['error']}")
+            error_msg = f"Error getting historical prices: {result['error']}"
+            logger.error(error_msg)
+            await ctx.error(error_msg)
             return result
             
         return result
     
     except Exception as e:
-        error_msg = f"Error getting prices: {type(e).__name__}"
+        error_msg = f"Error getting historical prices: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        await ctx.error(f"Failed to get prices for '{epic}'. Please try again.")
-        return {"error": f"Failed to get prices for '{epic}'"}
+        await ctx.error(error_msg)
+        return {"error": str(e)}
 
 @mcp.tool()
 async def get_positions(ctx: Context) -> Dict[str, Any]:
@@ -289,31 +340,27 @@ async def get_positions(ctx: Context) -> Dict[str, Any]:
     
     logger.info("Invoking get_positions tool")
     
-    # Check if authenticated
-    if not authenticated:
-        logger.info("Not authenticated yet, attempting authentication")
-        auth_result = client.authenticate()
-        authenticated = auth_result
-        if not authenticated:
-            error_msg = "Authentication required before using this tool"
-            logger.error(error_msg)
-            await ctx.error("Authentication required. Please authenticate first.")
-            return {"error": "Authentication required"}
-    
     try:
-        result = client.get_positions()
+        # Ensure we're authenticated before making any request
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
         
-        if "error" in result:
-            await ctx.error(f"Failed to get positions: {result['error']}")
-            return result
-            
-        return result
+        # Client method now handles re-authentication automatically
+        positions = client.get_positions()
+        return positions
     
     except Exception as e:
-        error_msg = f"Error getting positions: {type(e).__name__}"
+        error_msg = f"Error getting positions: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        await ctx.error("Failed to get positions. Please try again.")
-        return {"error": "Failed to get positions"}
+        await ctx.error(error_msg)
+        return {"error": str(e)}
 
 @mcp.tool()
 async def create_position(
@@ -321,13 +368,22 @@ async def create_position(
     epic: str = Field(description="The epic identifier for the instrument"),
     direction: str = Field(description="Trade direction (BUY or SELL)"),
     size: float = Field(description="Position size"),
-    stop_level: Optional[float] = Field(None, description="Stop loss level (optional)"),
-    profit_level: Optional[float] = Field(None, description="Take profit level (optional)"),
+    stop_level: Optional[float] = Field(default=None, description="Stop loss level (optional)"),
+    profit_level: Optional[float] = Field(default=None, description="Take profit level (optional)"),
+    leverage: Optional[float] = Field(default=None, description="Leverage ratio (e.g., 20 for 20:1) (optional)"),
+    guaranteed_stop: Optional[bool] = Field(default=None, description="Whether to use a guaranteed stop (optional)"),
 ) -> Dict[str, Any]:
     """Create a new trading position.
-    
+
     This tool creates a new trading position for the specified instrument.
-    
+    Returns a 'dealReference' (order reference) upon successful creation.
+
+    IMPORTANT WORKFLOW:
+    1. This tool returns a 'dealReference' (order reference) upon successful creation
+    2. To get the 'dealId' needed for close_position and update_position, call get_positions 
+       after creation and find the position with matching details (epic, size, direction)
+    3. The dealId from get_positions is what you need for managing the position
+
     Args:
         ctx: MCP context
         epic: The epic identifier for the instrument
@@ -335,13 +391,16 @@ async def create_position(
         size: Position size
         stop_level: Stop loss level (optional)
         profit_level: Take profit level (optional)
-        
+        leverage: Leverage ratio (e.g., 20 for 20:1) (optional)
+        guaranteed_stop: Whether to use a guaranteed stop (optional)
+
     Returns:
-        Dict[str, Any]: Position creation result
+        Dict[str, Any]: Position creation result with dealReference (order reference).
+                       Use get_positions to obtain the dealId for position management.
     """
     global authenticated, client
     
-    logger.info(f"Invoking create_position tool for epic: {epic}")
+    logger.info(f"Invoking create_position tool: {epic}, {direction}, {size}")
     
     # Validate inputs
     if not epic or len(epic.strip()) == 0:
@@ -368,39 +427,44 @@ async def create_position(
         auth_result = client.authenticate()
         authenticated = auth_result
         if not authenticated:
-            error_msg = "Authentication required before using this tool"
             logger.error(error_msg)
-            await ctx.error("Authentication required. Please authenticate first.")
-            return {"error": "Authentication required"}
+            await ctx.error(error_msg)
+            return {"error": error_msg}
     
     try:
-        result = client.create_position(epic, direction, size, stop_level, profit_level)
+        result = client.create_position(epic, direction, size, stop_level, profit_level, leverage, guaranteed_stop)
         
         if "error" in result:
-            await ctx.error(f"Failed to create position: {result['error']}")
+            error_msg = f"Error creating position: {result['error']}"
+            logger.error(error_msg)
+            await ctx.error(error_msg)
             return result
             
+        logger.info(f"Successfully created position for {epic}: {result}")
         return result
     
     except Exception as e:
-        error_msg = f"Error creating position: {type(e).__name__}"
+        error_msg = f"Error creating position: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        await ctx.error(f"Failed to create position for '{epic}'. Please try again.")
-        return {"error": f"Failed to create position for '{epic}'"}
+        await ctx.error(error_msg)
+        return {"error": str(e)}
 
 @mcp.tool()
 async def close_position(
     ctx: Context,
-    deal_id: str = Field(description="The deal ID of the position to close"),
+    deal_id: str = Field(description="The deal ID to close"),
 ) -> Dict[str, Any]:
-    """Close an open trading position.
+    """Close an open position.
+
+    This tool closes an open position with the specified deal ID.
     
-    This tool closes an open trading position by its deal ID.
-    
+    IMPORTANT: Use the dealId from get_positions, not the dealReference from create_position.
+    The dealId is found in the position.position.dealId field when calling get_positions.
+
     Args:
         ctx: MCP context
-        deal_id: The deal ID of the position to close
-        
+        deal_id: The deal ID to close (from get_positions, not the dealReference from create_position)
+
     Returns:
         Dict[str, Any]: Position closure result
     """
@@ -421,10 +485,7 @@ async def close_position(
         auth_result = client.authenticate()
         authenticated = auth_result
         if not authenticated:
-            error_msg = "Authentication required before using this tool"
             logger.error(error_msg)
-            await ctx.error("Authentication required. Please authenticate first.")
-            return {"error": "Authentication required"}
     
     try:
         result = client.close_position(deal_id)
@@ -445,16 +506,19 @@ async def close_position(
 async def update_position(
     ctx: Context,
     deal_id: str = Field(description="The deal ID of the position to update"),
-    stop_level: Optional[float] = Field(None, description="New stop loss level (optional)"),
-    profit_level: Optional[float] = Field(None, description="New take profit level (optional)"),
+    stop_level: Optional[float] = Field(default=None, description="New stop loss level (optional)"),
+    profit_level: Optional[float] = Field(default=None, description="New take profit level (optional)"),
 ) -> Dict[str, Any]:
     """Update an existing trading position.
 
-    This tool updates an existing position with new stop loss and/or take profit levels.
+    This tool updates an existing position with new stop loss and/or take profit settings.
+    
+    IMPORTANT: Use the dealId from get_positions, not the dealReference from create_position.
+    The dealId is found in the position.position.dealId field when calling get_positions.
 
     Args:
         ctx: MCP context
-        deal_id: The deal ID of the position to update
+        deal_id: The deal ID of the position to update (from get_positions, not dealReference from create_position)
         stop_level: New stop loss level (optional)
         profit_level: New take profit level (optional)
 
@@ -484,10 +548,7 @@ async def update_position(
         auth_result = client.authenticate()
         authenticated = auth_result
         if not authenticated:
-            error_msg = "Authentication required before using this tool"
             logger.error(error_msg)
-            await ctx.error("Authentication required. Please authenticate first.")
-            return {"error": "Authentication required"}
     
     try:
         result = client.update_position(deal_id, stop_level, profit_level)
@@ -523,10 +584,7 @@ async def get_watchlists(ctx: Context) -> Dict[str, Any]:
         auth_result = client.authenticate()
         authenticated = auth_result
         if not authenticated:
-            error_msg = "Authentication required before using this tool"
             logger.error(error_msg)
-            await ctx.error("Authentication required. Please authenticate first.")
-            return {"error": "Authentication required"}
     
     try:
         result = client.get_watchlists()

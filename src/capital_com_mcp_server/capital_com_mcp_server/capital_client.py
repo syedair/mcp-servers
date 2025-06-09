@@ -4,6 +4,7 @@ import requests
 import json
 import logging
 import sys
+from dotenv import load_dotenv
 from typing import Dict, List, Optional, Union, Any
 
 # Configure logging
@@ -15,7 +16,9 @@ class CapitalClient:
     """
     
     def __init__(self, base_url=None, api_key=None, identifier=None, password=None):
-        """Initialize the Capital.com client with credentials"""
+        """Initialize the Capital.com client with credentials from .env file"""
+        load_dotenv()
+        
         # Get credentials from parameters or environment variables
         self.base_url = base_url or os.getenv("CAPITAL_BASE_URL")
         self.api_key = api_key or os.getenv("CAPITAL_API_KEY")
@@ -27,6 +30,15 @@ class CapitalClient:
         self.x_security_token = None
         self.account_id = None
         self.session = requests.Session()
+        
+        # Session tokens from environment (optional)
+        self.session_token = os.getenv("CAPITAL_SESSION_TOKEN", "")
+        self.security_token = os.getenv("CAPITAL_SECURITY_TOKEN", "")
+        
+        self.headers = {
+            "X-CAP-API-KEY": self.api_key,
+            "Content-Type": "application/json"
+        }
         
         # Configure logging
         handler = logging.StreamHandler()
@@ -67,6 +79,16 @@ class CapitalClient:
                 # Store session tokens
                 self.cst = response.headers.get("CST")
                 self.x_security_token = response.headers.get("X-SECURITY-TOKEN")
+                
+                # Update headers with authentication tokens
+                self.headers["CST"] = self.cst
+                self.headers["X-SECURITY-TOKEN"] = self.x_security_token
+                
+                # Save tokens to environment variables (optional)
+                data = response.json()
+                os.environ["CAPITAL_SESSION_TOKEN"] = data.get("session_token", "")
+                os.environ["CAPITAL_SECURITY_TOKEN"] = self.x_security_token
+                os.environ["CAPITAL_CST"] = self.cst
                 
                 # Get account ID
                 accounts_response = self.session.get(
@@ -114,6 +136,43 @@ class CapitalClient:
             
         return headers
     
+    def _make_authenticated_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """
+        Make an authenticated request with automatic re-authentication on token expiry
+        
+        Args:
+            method: HTTP method
+            url: Request URL
+            **kwargs: Additional request parameters
+            
+        Returns:
+            requests.Response: HTTP response
+        """
+        if not self.account_id:
+            raise Exception("Not authenticated")
+        
+        # Make the initial request
+        headers = self._get_auth_headers()
+        response = self.session.request(method, url, headers=headers, **kwargs)
+        
+        # If 401 error, tokens have expired - re-authenticate and retry
+        if response.status_code == 401:
+            logger.warning("Session tokens expired, attempting re-authentication")
+            
+            # Re-authenticate
+            auth_result = self.authenticate()
+            
+            if auth_result:
+                logger.info("Re-authentication successful, retrying request")
+                # Retry the request with new tokens
+                headers = self._get_auth_headers()
+                response = self.session.request(method, url, headers=headers, **kwargs)
+            else:
+                logger.error("Re-authentication failed")
+                raise Exception("Re-authentication failed. Please check your Capital.com API credentials.")
+        
+        return response
+    
     def get_account_info(self) -> Dict[str, Any]:
         """
         Get account information
@@ -126,11 +185,10 @@ class CapitalClient:
             return {"error": "Not authenticated"}
             
         try:
-            url = f"{self.base_url}/api/v1/accounts/{self.account_id}"
-            headers = self._get_auth_headers()
+            url = f"{self.base_url}/api/v1/accounts"
             
             logger.debug(f"Getting account info from {url}")
-            response = self.session.get(url, headers=headers)
+            response = self._make_authenticated_request("GET", url)
             
             if response.status_code == 200:
                 return response.json()
@@ -142,12 +200,13 @@ class CapitalClient:
             logger.error(f"Error getting account info: {type(e).__name__}", exc_info=True)
             return {"error": f"Error getting account info: {str(e)}"}
     
-    def search_markets(self, query: str, limit: int = 10) -> Dict[str, Any]:
+    def search_markets(self, search_term: str = None, epics: str = None, limit: int = 10) -> Dict[str, Any]:
         """
         Search for markets
         
         Args:
-            query: Search query
+            search_term: Search term to find markets (optional)
+            epics: Comma-separated epic identifiers, max 50 (optional)
             limit: Maximum number of results to return
             
         Returns:
@@ -158,11 +217,17 @@ class CapitalClient:
             return {"error": "Not authenticated"}
             
         try:
-            url = f"{self.base_url}/api/v1/markets?searchTerm={query}&limit={limit}"
-            headers = self._get_auth_headers()
+            url = f"{self.base_url}/api/v1/markets"
+            params = {}
             
-            logger.debug(f"Searching markets with query '{query}' from {url}")
-            response = self.session.get(url, headers=headers)
+            # If both search_term and epics are provided, search_term takes priority
+            if search_term is not None:
+                params["searchTerm"] = search_term
+            elif epics is not None:
+                params["epics"] = epics
+            
+            logger.debug(f"Searching markets with params {params} from {url}")
+            response = self._make_authenticated_request("GET", url, params=params)
             
             if response.status_code == 200:
                 return response.json()
@@ -192,10 +257,9 @@ class CapitalClient:
             
         try:
             url = f"{self.base_url}/api/v1/prices/{epic}?resolution={resolution}&limit={limit}"
-            headers = self._get_auth_headers()
             
             logger.debug(f"Getting prices for '{epic}' from {url}")
-            response = self.session.get(url, headers=headers)
+            response = self._make_authenticated_request("GET", url)
             
             if response.status_code == 200:
                 return response.json()
@@ -220,10 +284,9 @@ class CapitalClient:
             
         try:
             url = f"{self.base_url}/api/v1/positions"
-            headers = self._get_auth_headers()
             
             logger.debug(f"Getting positions from {url}")
-            response = self.session.get(url, headers=headers)
+            response = self._make_authenticated_request("GET", url)
             
             if response.status_code == 200:
                 return response.json()
@@ -241,7 +304,9 @@ class CapitalClient:
         direction: str, 
         size: float, 
         stop_level: Optional[float] = None, 
-        profit_level: Optional[float] = None
+        profit_level: Optional[float] = None,
+        leverage: Optional[float] = None,
+        guaranteed_stop: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
         Create a new trading position
@@ -252,6 +317,8 @@ class CapitalClient:
             size: Position size
             stop_level: Stop loss level (optional)
             profit_level: Take profit level (optional)
+            leverage: Leverage ratio (e.g., 20 for 20:1) (optional)
+            guaranteed_stop: Whether to use a guaranteed stop (optional)
             
         Returns:
             Dict[str, Any]: Position creation result
@@ -268,8 +335,6 @@ class CapitalClient:
                 "epic": epic,
                 "direction": direction,
                 "size": str(size),
-                "guaranteedStop": "false",
-                "forceOpen": "true"
             }
             
             if stop_level is not None:
@@ -277,9 +342,15 @@ class CapitalClient:
                 
             if profit_level is not None:
                 payload["profitLevel"] = str(profit_level)
+                
+            if leverage is not None:
+                payload["leverage"] = str(leverage)
+                
+            if guaranteed_stop is not None:
+                payload["guaranteedStop"] = guaranteed_stop
             
             logger.debug(f"Creating position with payload: {payload}")
-            response = self.session.post(url, headers=headers, json=payload)
+            response = self._make_authenticated_request("POST", url, json=payload)
             
             if response.status_code == 200:
                 return response.json()
@@ -344,7 +415,7 @@ class CapitalClient:
             }
             
             logger.debug(f"Closing position with payload: {payload}")
-            response = self.session.delete(url, headers=headers, json=payload)
+            response = self._make_authenticated_request("DELETE", url, json=payload)
             
             if response.status_code == 200:
                 return response.json()
@@ -394,7 +465,7 @@ class CapitalClient:
                 payload["profitLevel"] = str(profit_level)
             
             logger.debug(f"Updating position with payload: {payload}")
-            response = self.session.put(url, headers=headers, json=payload)
+            response = self._make_authenticated_request("PUT", url, json=payload)
             
             if response.status_code == 200:
                 return response.json()
@@ -419,10 +490,8 @@ class CapitalClient:
             
         try:
             url = f"{self.base_url}/api/v1/watchlists"
-            headers = self._get_auth_headers()
-            
             logger.debug(f"Getting watchlists from {url}")
-            response = self.session.get(url, headers=headers)
+            response = self._make_authenticated_request("GET", url)
             
             if response.status_code == 200:
                 return response.json()
@@ -433,3 +502,86 @@ class CapitalClient:
         except Exception as e:
             logger.error(f"Error getting watchlists: {type(e).__name__}", exc_info=True)
             return {"error": f"Error getting watchlists: {str(e)}"}
+
+    def get_historical_prices(self, epic: str, resolution: str, max_bars: int = 10, from_date: Optional[str] = None, to_date: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get historical price data for a specific instrument with custom granularity
+        
+        Args:
+            epic (str): The epic identifier for the instrument
+            resolution (str): Time resolution (e.g., MINUTE, MINUTE_5, MINUTE_15, MINUTE_30, HOUR, HOUR_4, DAY, WEEK, MONTH)
+            max_bars (int, optional): Maximum number of bars to return (default: 10)
+            from_date (str, optional): Start date in ISO format (e.g., "2022-02-24T00:00:00")
+            to_date (str, optional): End date in ISO format
+            
+        Returns:
+            Dict: Historical price information
+        """
+        if not self.account_id:
+            logger.error("Not authenticated")
+            return {"error": "Not authenticated"}
+            
+        try:
+            url = f"{self.base_url}/api/v1/prices/{epic}"
+            params = {
+                "resolution": resolution,
+                "max": max_bars
+            }
+            
+            if from_date:
+                params["from"] = from_date
+            
+            if to_date:
+                params["to"] = to_date
+            
+            logger.debug(f"Getting historical prices for '{epic}' from {url}")
+            response = self._make_authenticated_request("GET", url, params=params)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get historical prices: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get historical prices: {response.status_code}"}
+                
+        except Exception as e:
+            logger.error(f"Error getting historical prices: {type(e).__name__}", exc_info=True)
+            return {"error": f"Error getting historical prices: {str(e)}"}
+
+    def calculate_margin(self, epic: str, direction: str, size: float, leverage: float = 20.0) -> Dict:
+        """
+        Calculate margin requirements for a potential position
+        
+        Args:
+            epic (str): The epic identifier for the instrument
+            direction (str): "BUY" or "SELL"
+            size (float): Trade size
+            leverage (float): Leverage ratio (e.g., 20 for 20:1)
+            
+        Returns:
+            Dict: Margin calculation result
+        """
+        # Get current price information
+        price_info = self.get_prices(epic)
+        
+        if not price_info or "prices" not in price_info or not price_info["prices"]:
+            return {"error": f"Could not retrieve price information for {epic}"}
+        
+        # Get the latest price
+        latest_price = price_info["prices"][0]
+        bid = float(latest_price.get("bid", 0))
+        ask = float(latest_price.get("ask", 0))
+        
+        # Use bid for SELL and ask for BUY
+        price = bid if direction == "SELL" else ask
+        
+        # Calculate margin required (approximate calculation)
+        margin = (price * size) / leverage
+        
+        return {
+            "instrument": epic,
+            "direction": direction,
+            "size": size,
+            "leverage": leverage,
+            "price": price,
+            "margin_required": margin
+        }
