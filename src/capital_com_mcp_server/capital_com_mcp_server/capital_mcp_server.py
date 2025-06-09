@@ -241,7 +241,7 @@ async def search_markets(
 async def get_prices(
     ctx: Context,
     epic: str = Field(description="The epic identifier for the instrument"),
-    resolution: str = Field(default=None, description="Time resolution (optional, e.g., MINUTE, HOUR, DAY)"),
+    resolution: Optional[str] = Field(default=None, description="Time resolution (optional, e.g., MINUTE, HOUR, DAY, WEEK). Defaults to MINUTE if not specified."),
 ) -> Dict[str, Any]:
     """Get prices for a specific instrument.
 
@@ -260,7 +260,11 @@ async def get_prices(
     logger.info(f"Invoking get_prices tool for epic: {epic}")
     
     try:
-        prices = client.get_prices(epic, resolution)
+        # Use client method with proper default handling
+        if resolution is not None:
+            prices = client.get_prices(epic, resolution)
+        else:
+            prices = client.get_prices(epic)  # Use client's default resolution
         return prices
     
     except Exception as e:
