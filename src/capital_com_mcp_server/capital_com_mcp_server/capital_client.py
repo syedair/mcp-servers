@@ -585,3 +585,297 @@ class CapitalClient:
             "price": price,
             "margin_required": margin
         }
+
+    # Session Management Methods
+    def get_session_info(self) -> Dict[str, Any]:
+        """Get current session information including active financial account"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/session")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get session info: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get session info: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting session info: {str(e)}")
+            return {"error": str(e)}
+
+    def change_financial_account(self, account_id: str) -> Dict[str, Any]:
+        """Switch to a different financial account"""
+        try:
+            data = {"accountId": account_id}
+            response = self._make_authenticated_request("PUT", f"{self.base_url}/api/v1/session", json=data)
+            if response.status_code == 200:
+                # Update the X-SECURITY-TOKEN header for subsequent requests
+                if 'X-SECURITY-TOKEN' in response.headers:
+                    self.x_security_token = response.headers['X-SECURITY-TOKEN']
+                return {"success": True, "message": f"Changed to account {account_id}"}
+            else:
+                logger.error(f"Failed to change account: {response.status_code} - {response.text}")
+                return {"error": f"Failed to change account: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error changing account: {str(e)}")
+            return {"error": str(e)}
+
+    # Account Management Methods
+    def get_accounts(self) -> Dict[str, Any]:
+        """Get list of all financial accounts"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/accounts")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get accounts: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get accounts: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting accounts: {str(e)}")
+            return {"error": str(e)}
+
+    def get_account_preferences(self) -> Dict[str, Any]:
+        """Get account preferences including leverage settings and hedging mode"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/accounts/preferences")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get account preferences: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get account preferences: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting account preferences: {str(e)}")
+            return {"error": str(e)}
+
+    def update_account_preferences(self, preferences: Dict[str, Any]) -> Dict[str, Any]:
+        """Update account preferences including leverage settings and hedging mode"""
+        try:
+            response = self._make_authenticated_request("PUT", f"{self.base_url}/api/v1/accounts/preferences", json=preferences)
+            if response.status_code == 200:
+                return {"success": True, "message": "Account preferences updated"}
+            else:
+                logger.error(f"Failed to update account preferences: {response.status_code} - {response.text}")
+                return {"error": f"Failed to update account preferences: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error updating account preferences: {str(e)}")
+            return {"error": str(e)}
+
+    def top_up_demo_account(self, amount: float) -> Dict[str, Any]:
+        """Top up demo account balance"""
+        try:
+            data = {"amount": amount}
+            response = self._make_authenticated_request("POST", f"{self.base_url}/api/v1/accounts/topUp", json=data)
+            if response.status_code == 200:
+                return {"success": True, "message": f"Demo account topped up with {amount}"}
+            else:
+                logger.error(f"Failed to top up demo account: {response.status_code} - {response.text}")
+                return {"error": f"Failed to top up demo account: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error topping up demo account: {str(e)}")
+            return {"error": str(e)}
+
+    # Market Navigation Methods
+    def get_market_navigation(self) -> Dict[str, Any]:
+        """Get asset group names for market navigation"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/marketnavigation")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get market navigation: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get market navigation: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting market navigation: {str(e)}")
+            return {"error": str(e)}
+
+    def get_market_navigation_node(self, node_id: str) -> Dict[str, Any]:
+        """Get assets under a specific market navigation node"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/marketnavigation/{node_id}")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get market navigation node: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get market navigation node: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting market navigation node: {str(e)}")
+            return {"error": str(e)}
+
+    def get_watchlist_contents(self, watchlist_id: str) -> Dict[str, Any]:
+        """Get contents of a specific watchlist"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/watchlists/{watchlist_id}")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get watchlist contents: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get watchlist contents: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting watchlist contents: {str(e)}")
+            return {"error": str(e)}
+
+    # Working Orders Management Methods
+    def create_working_order(self, epic: str, direction: str, size: float, level: float, 
+                           order_type: str = "STOP", time_in_force: str = "GOOD_TILL_CANCELLED",
+                           stop_level: Optional[float] = None, profit_level: Optional[float] = None) -> Dict[str, Any]:
+        """Create a working order (stop or limit order)"""
+        try:
+            data = {
+                "epic": epic,
+                "direction": direction,
+                "size": size,
+                "level": level,
+                "type": order_type,
+                "timeInForce": time_in_force
+            }
+            
+            if stop_level is not None:
+                data["stopLevel"] = stop_level
+            if profit_level is not None:
+                data["profitLevel"] = profit_level
+                
+            response = self._make_authenticated_request("POST", f"{self.base_url}/api/v1/workingorders", json=data)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to create working order: {response.status_code} - {response.text}")
+                return {"error": f"Failed to create working order: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error creating working order: {str(e)}")
+            return {"error": str(e)}
+
+    def get_working_orders(self) -> Dict[str, Any]:
+        """Get all working orders"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/workingorders")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get working orders: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get working orders: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting working orders: {str(e)}")
+            return {"error": str(e)}
+
+    def update_working_order(self, working_order_id: str, level: Optional[float] = None,
+                           stop_level: Optional[float] = None, profit_level: Optional[float] = None) -> Dict[str, Any]:
+        """Update a working order"""
+        try:
+            data = {}
+            if level is not None:
+                data["level"] = level
+            if stop_level is not None:
+                data["stopLevel"] = stop_level
+            if profit_level is not None:
+                data["profitLevel"] = profit_level
+                
+            response = self._make_authenticated_request("PUT", f"{self.base_url}/api/v1/workingorders/{working_order_id}", json=data)
+            if response.status_code == 200:
+                return {"success": True, "message": f"Working order {working_order_id} updated"}
+            else:
+                logger.error(f"Failed to update working order: {response.status_code} - {response.text}")
+                return {"error": f"Failed to update working order: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error updating working order: {str(e)}")
+            return {"error": str(e)}
+
+    def delete_working_order(self, working_order_id: str) -> Dict[str, Any]:
+        """Delete a working order"""
+        try:
+            response = self._make_authenticated_request("DELETE", f"{self.base_url}/api/v1/workingorders/{working_order_id}")
+            if response.status_code == 200:
+                return {"success": True, "message": f"Working order {working_order_id} deleted"}
+            else:
+                logger.error(f"Failed to delete working order: {response.status_code} - {response.text}")
+                return {"error": f"Failed to delete working order: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error deleting working order: {str(e)}")
+            return {"error": str(e)}
+
+    # History Methods
+    def get_activity_history(self, from_date: Optional[str] = None, to_date: Optional[str] = None, 
+                           detailed: bool = False, deal_id: Optional[str] = None, 
+                           filter_type: Optional[str] = None, page_size: int = 20) -> Dict[str, Any]:
+        """Get account activity history (max 1 day range)"""
+        try:
+            params = {"detailed": str(detailed).lower(), "pageSize": page_size}
+            
+            if from_date:
+                params["from"] = from_date
+            if to_date:
+                params["to"] = to_date
+            if deal_id:
+                params["dealId"] = deal_id
+            if filter_type:
+                params["filter"] = filter_type
+                
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/history/activity", params=params)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get activity history: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get activity history: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting activity history: {str(e)}")
+            return {"error": str(e)}
+
+    def get_transaction_history(self, from_date: Optional[str] = None, to_date: Optional[str] = None,
+                              transaction_type: Optional[str] = None, page_size: int = 20) -> Dict[str, Any]:
+        """Get transaction history"""
+        try:
+            params = {"pageSize": page_size}
+            
+            if from_date:
+                params["from"] = from_date
+            if to_date:
+                params["to"] = to_date
+            if transaction_type:
+                params["type"] = transaction_type
+                
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/history/transactions", params=params)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get transaction history: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get transaction history: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting transaction history: {str(e)}")
+            return {"error": str(e)}
+
+    # Position Confirmation Methods
+    def confirm_deal(self, deal_reference: str) -> Dict[str, Any]:
+        """Confirm the status of a position after creation using dealReference"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/confirms/{deal_reference}")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to confirm deal: {response.status_code} - {response.text}")
+                return {"error": f"Failed to confirm deal: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error confirming deal: {str(e)}")
+            return {"error": str(e)}
+
+    # Utility Methods
+    def ping(self) -> Dict[str, Any]:
+        """Test connection to the API"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/ping")
+            if response.status_code == 200:
+                return {"status": "ok", "message": "Connection successful"}
+            else:
+                logger.error(f"Ping failed: {response.status_code} - {response.text}")
+                return {"error": f"Ping failed: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error pinging API: {str(e)}")
+            return {"error": str(e)}
+
+    def get_server_time(self) -> Dict[str, Any]:
+        """Get server time"""
+        try:
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/time")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to get server time: {response.status_code} - {response.text}")
+                return {"error": f"Failed to get server time: {response.status_code}"}
+        except Exception as e:
+            logger.error(f"Error getting server time: {str(e)}")
+            return {"error": str(e)}

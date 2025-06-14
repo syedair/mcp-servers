@@ -605,6 +605,814 @@ async def get_watchlists(ctx: Context) -> Dict[str, Any]:
         await ctx.error("Failed to get watchlists. Please try again.")
         return {"error": "Failed to get watchlists"}
 
+# Session Management Tools
+@mcp.tool()
+async def get_session_info(ctx: Context) -> Dict[str, Any]:
+    """Get current session information including active financial account.
+    
+    This tool retrieves information about the current session including the active financial account.
+    
+    Returns:
+        Dict[str, Any]: Session information
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_session_info tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_session_info()
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting session info: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def change_financial_account(
+    ctx: Context,
+    account_id: str = Field(description="The financial account ID to switch to")
+) -> Dict[str, Any]:
+    """Switch to a different financial account.
+    
+    This tool allows switching between different financial accounts associated with your Capital.com account.
+    
+    Args:
+        ctx: MCP context
+        account_id: The financial account ID to switch to
+        
+    Returns:
+        Dict[str, Any]: Result of account change operation
+    """
+    global authenticated, client
+    
+    logger.info(f"Invoking change_financial_account tool for account: {account_id}")
+    
+    if not account_id or len(account_id.strip()) == 0:
+        validation_error = "Account ID cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.change_financial_account(account_id)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error changing financial account: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+# Account Management Tools
+@mcp.tool()
+async def get_accounts(ctx: Context) -> Dict[str, Any]:
+    """Get list of all financial accounts.
+    
+    This tool retrieves all financial accounts associated with your Capital.com account.
+    
+    Returns:
+        Dict[str, Any]: List of financial accounts
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_accounts tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_accounts()
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting accounts: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def get_account_preferences(ctx: Context) -> Dict[str, Any]:
+    """Get account preferences including leverage settings and hedging mode.
+    
+    This tool retrieves account preferences such as leverage settings for different instruments and hedging mode.
+    
+    Returns:
+        Dict[str, Any]: Account preferences
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_account_preferences tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_account_preferences()
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting account preferences: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def update_account_preferences(
+    ctx: Context,
+    preferences: str = Field(description="JSON string of preferences to update (e.g., '{\"hedgingMode\": true, \"leverages\": {\"FOREX\": 30}}')")
+) -> Dict[str, Any]:
+    """Update account preferences including leverage settings and hedging mode.
+    
+    This tool updates account preferences such as leverage settings and hedging mode.
+    
+    Args:
+        ctx: MCP context
+        preferences: JSON string of preferences to update
+        
+    Returns:
+        Dict[str, Any]: Result of preferences update
+    """
+    global authenticated, client
+    
+    logger.info("Invoking update_account_preferences tool")
+    
+    if not preferences or len(preferences.strip()) == 0:
+        validation_error = "Preferences cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        # Parse JSON preferences
+        preferences_dict = json.loads(preferences)
+        
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.update_account_preferences(preferences_dict)
+        return result
+    
+    except json.JSONDecodeError as e:
+        error_msg = f"Invalid JSON format: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"error": error_msg}
+    except Exception as e:
+        error_msg = f"Error updating account preferences: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def top_up_demo_account(
+    ctx: Context,
+    amount: float = Field(description="Amount to add to demo account balance")
+) -> Dict[str, Any]:
+    """Top up demo account balance.
+    
+    This tool adds funds to your demo trading account for testing purposes.
+    
+    Args:
+        ctx: MCP context
+        amount: Amount to add to demo account balance
+        
+    Returns:
+        Dict[str, Any]: Result of top-up operation
+    """
+    global authenticated, client
+    
+    logger.info(f"Invoking top_up_demo_account tool with amount: {amount}")
+    
+    if amount <= 0:
+        validation_error = "Amount must be greater than 0"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.top_up_demo_account(amount)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error topping up demo account: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+# Market Navigation Tools
+@mcp.tool()
+async def get_market_navigation(ctx: Context) -> Dict[str, Any]:
+    """Get asset group names for market navigation.
+    
+    This tool retrieves the hierarchical structure of asset groups available for trading.
+    
+    Returns:
+        Dict[str, Any]: Market navigation structure
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_market_navigation tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_market_navigation()
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting market navigation: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def get_market_navigation_node(
+    ctx: Context,
+    node_id: str = Field(description="The node ID to get assets for")
+) -> Dict[str, Any]:
+    """Get assets under a specific market navigation node.
+    
+    This tool retrieves all assets/instruments under a specific node in the market navigation hierarchy.
+    
+    Args:
+        ctx: MCP context
+        node_id: The node ID to get assets for
+        
+    Returns:
+        Dict[str, Any]: Assets under the specified node
+    """
+    global authenticated, client
+    
+    logger.info(f"Invoking get_market_navigation_node tool for node: {node_id}")
+    
+    if not node_id or len(node_id.strip()) == 0:
+        validation_error = "Node ID cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_market_navigation_node(node_id)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting market navigation node: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def get_watchlist_contents(
+    ctx: Context,
+    watchlist_id: str = Field(description="The watchlist ID to get contents for")
+) -> Dict[str, Any]:
+    """Get contents of a specific watchlist.
+    
+    This tool retrieves all instruments in a specific watchlist.
+    
+    Args:
+        ctx: MCP context
+        watchlist_id: The watchlist ID to get contents for
+        
+    Returns:
+        Dict[str, Any]: Contents of the watchlist
+    """
+    global authenticated, client
+    
+    logger.info(f"Invoking get_watchlist_contents tool for watchlist: {watchlist_id}")
+    
+    if not watchlist_id or len(watchlist_id.strip()) == 0:
+        validation_error = "Watchlist ID cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_watchlist_contents(watchlist_id)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting watchlist contents: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+# Working Orders Management Tools
+@mcp.tool()
+async def create_working_order(
+    ctx: Context,
+    epic: str = Field(description="The epic identifier for the instrument"),
+    direction: str = Field(description="Trade direction (BUY or SELL)"),
+    size: float = Field(description="Order size"),
+    level: float = Field(description="Price level for the order"),
+    order_type: str = Field(default="STOP", description="Order type (STOP or LIMIT)"),
+    time_in_force: str = Field(default="GOOD_TILL_CANCELLED", description="Time in force (GOOD_TILL_CANCELLED, GOOD_TILL_DATE)"),
+    stop_level: Optional[float] = Field(default=None, description="Stop loss level (optional)"),
+    profit_level: Optional[float] = Field(default=None, description="Take profit level (optional)")
+) -> Dict[str, Any]:
+    """Create a working order (stop or limit order).
+    
+    This tool creates a working order that will be executed when the market reaches the specified level.
+    
+    Args:
+        ctx: MCP context
+        epic: The epic identifier for the instrument
+        direction: Trade direction (BUY or SELL)
+        size: Order size
+        level: Price level for the order
+        order_type: Order type (STOP or LIMIT)
+        time_in_force: Time in force
+        stop_level: Stop loss level (optional)
+        profit_level: Take profit level (optional)
+        
+    Returns:
+        Dict[str, Any]: Working order creation result
+    """
+    global authenticated, client
+    
+    logger.info(f"Invoking create_working_order tool: {epic}, {direction}, {size}, {level}")
+    
+    # Validate inputs
+    if not epic or len(epic.strip()) == 0:
+        validation_error = "Epic identifier cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    if direction not in ["BUY", "SELL"]:
+        validation_error = "Direction must be either 'BUY' or 'SELL'"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    if size <= 0:
+        validation_error = "Size must be greater than 0"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    if level <= 0:
+        validation_error = "Level must be greater than 0"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    if order_type not in ["STOP", "LIMIT"]:
+        validation_error = "Order type must be either 'STOP' or 'LIMIT'"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.create_working_order(epic, direction, size, level, order_type, time_in_force, stop_level, profit_level)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error creating working order: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def get_working_orders(ctx: Context) -> Dict[str, Any]:
+    """Get all working orders.
+    
+    This tool retrieves all pending working orders (stop and limit orders).
+    
+    Returns:
+        Dict[str, Any]: List of working orders
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_working_orders tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_working_orders()
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting working orders: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def update_working_order(
+    ctx: Context,
+    working_order_id: str = Field(description="The working order ID to update"),
+    level: Optional[float] = Field(default=None, description="New price level (optional)"),
+    stop_level: Optional[float] = Field(default=None, description="New stop loss level (optional)"),
+    profit_level: Optional[float] = Field(default=None, description="New take profit level (optional)")
+) -> Dict[str, Any]:
+    """Update a working order.
+    
+    This tool updates the parameters of an existing working order.
+    
+    Args:
+        ctx: MCP context
+        working_order_id: The working order ID to update
+        level: New price level (optional)
+        stop_level: New stop loss level (optional)
+        profit_level: New take profit level (optional)
+        
+    Returns:
+        Dict[str, Any]: Working order update result
+    """
+    global authenticated, client
+    
+    logger.info(f"Invoking update_working_order tool for order: {working_order_id}")
+    
+    if not working_order_id or len(working_order_id.strip()) == 0:
+        validation_error = "Working order ID cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    if level is None and stop_level is None and profit_level is None:
+        validation_error = "At least one parameter (level, stop_level, or profit_level) must be provided"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.update_working_order(working_order_id, level, stop_level, profit_level)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error updating working order: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def delete_working_order(
+    ctx: Context,
+    working_order_id: str = Field(description="The working order ID to delete")
+) -> Dict[str, Any]:
+    """Delete a working order.
+    
+    This tool cancels and removes a working order.
+    
+    Args:
+        ctx: MCP context
+        working_order_id: The working order ID to delete
+        
+    Returns:
+        Dict[str, Any]: Working order deletion result
+    """
+    global authenticated, client
+    
+    logger.info(f"Invoking delete_working_order tool for order: {working_order_id}")
+    
+    if not working_order_id or len(working_order_id.strip()) == 0:
+        validation_error = "Working order ID cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.delete_working_order(working_order_id)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error deleting working order: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+# History Tools
+@mcp.tool()
+async def get_activity_history(
+    ctx: Context,
+    from_date: Optional[str] = Field(default=None, description="Start date in ISO format (e.g., '2024-01-01T00:00:00')"),
+    to_date: Optional[str] = Field(default=None, description="End date in ISO format (max 1 day range)"),
+    detailed: bool = Field(default=False, description="Whether to include detailed information"),
+    deal_id: Optional[str] = Field(default=None, description="Filter by specific deal ID"),
+    filter_type: Optional[str] = Field(default=None, description="Filter by activity type"),
+    page_size: int = Field(default=20, description="Number of results per page")
+) -> Dict[str, Any]:
+    """Get account activity history (max 1 day range).
+    
+    This tool retrieves the trading activity history for your account.
+    
+    Args:
+        ctx: MCP context
+        from_date: Start date in ISO format
+        to_date: End date in ISO format (max 1 day range)
+        detailed: Whether to include detailed information
+        deal_id: Filter by specific deal ID
+        filter_type: Filter by activity type
+        page_size: Number of results per page
+        
+    Returns:
+        Dict[str, Any]: Account activity history
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_activity_history tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_activity_history(from_date, to_date, detailed, deal_id, filter_type, page_size)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting activity history: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def get_transaction_history(
+    ctx: Context,
+    from_date: Optional[str] = Field(default=None, description="Start date in ISO format (e.g., '2024-01-01T00:00:00')"),
+    to_date: Optional[str] = Field(default=None, description="End date in ISO format"),
+    transaction_type: Optional[str] = Field(default=None, description="Filter by transaction type"),
+    page_size: int = Field(default=20, description="Number of results per page")
+) -> Dict[str, Any]:
+    """Get transaction history.
+    
+    This tool retrieves the financial transaction history for your account.
+    
+    Args:
+        ctx: MCP context
+        from_date: Start date in ISO format
+        to_date: End date in ISO format
+        transaction_type: Filter by transaction type
+        page_size: Number of results per page
+        
+    Returns:
+        Dict[str, Any]: Transaction history
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_transaction_history tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_transaction_history(from_date, to_date, transaction_type, page_size)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting transaction history: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+# Position Confirmation Tools
+@mcp.tool()
+async def confirm_deal(
+    ctx: Context,
+    deal_reference: str = Field(description="The deal reference from position creation to confirm")
+) -> Dict[str, Any]:
+    """Confirm the status of a position after creation using dealReference.
+    
+    This tool confirms whether a position was successfully created and provides the dealId for position management.
+    Use this after create_position to verify the position was opened and get the dealId.
+    
+    Args:
+        ctx: MCP context
+        deal_reference: The deal reference returned from create_position
+        
+    Returns:
+        Dict[str, Any]: Deal confirmation with status and affected deals (including dealId)
+    """
+    global authenticated, client
+    
+    logger.info(f"Invoking confirm_deal tool for reference: {deal_reference}")
+    
+    if not deal_reference or len(deal_reference.strip()) == 0:
+        validation_error = "Deal reference cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.confirm_deal(deal_reference)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error confirming deal: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+# Utility Tools
+@mcp.tool()
+async def ping_api(ctx: Context) -> Dict[str, Any]:
+    """Test connection to the Capital.com API.
+    
+    This tool tests the connection to the API server and returns the connection status.
+    
+    Returns:
+        Dict[str, Any]: Connection status
+    """
+    global authenticated, client
+    
+    logger.info("Invoking ping_api tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.ping()
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error pinging API: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+@mcp.tool()
+async def get_server_time(ctx: Context) -> Dict[str, Any]:
+    """Get server time from Capital.com API.
+    
+    This tool retrieves the current server time from the Capital.com API.
+    
+    Returns:
+        Dict[str, Any]: Server time information
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_server_time tool")
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_server_time()
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting server time: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
 
 def main():
     """Run the MCP server with CLI argument support."""
