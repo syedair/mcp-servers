@@ -6,6 +6,7 @@ This is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introdu
 
 The following tools are exposed by the MCP server:
 
+### Core Trading Tools
 - `get_account_info`: Get account information and balance
 - `search_markets`: Search for markets/instruments (supports both search terms and epic codes)
 - `get_prices`: Get current prices with configurable time resolution (MINUTE, HOUR, DAY, etc.)
@@ -16,11 +17,45 @@ The following tools are exposed by the MCP server:
 - `update_position`: Update position stop loss or take profit levels
 - `get_watchlists`: Get all saved watchlists
 
+### Session & Account Management
+- `get_session_info`: Get current session information including active financial account
+- `change_financial_account`: Switch between different financial accounts
+- `get_accounts`: Get list of all financial accounts
+- `get_account_preferences`: Get account preferences including leverage settings and hedging mode
+- `update_account_preferences`: Update account preferences such as leverage settings
+- `top_up_demo_account`: Add funds to demo trading account for testing
+
+### Market Navigation & Discovery
+- `get_market_navigation`: Get hierarchical structure of asset groups available for trading
+- `get_market_navigation_node`: Get all assets/instruments under a specific navigation node
+- `get_watchlist_contents`: Get contents of a specific watchlist
+
+### Working Orders Management
+- `create_working_order`: Create stop or limit orders that execute when market reaches specified level
+- `get_working_orders`: Get all pending working orders (stop and limit orders)
+- `update_working_order`: Update parameters of existing working orders
+- `delete_working_order`: Cancel and remove working orders
+
+### History & Reporting
+- `get_activity_history`: Get trading activity history for your account (max 1 day range)
+- `get_transaction_history`: Get financial transaction history
+- `confirm_deal`: Confirm position status after creation and get dealId for management
+
+### Utilities
+- `ping_api`: Test connection to the Capital.com API
+- `get_server_time`: Get current server time from Capital.com API
+
 ## ✨ Key Features
 
+- **Complete API Coverage**: Full access to all Capital.com REST API endpoints (25+ tools)
 - **Automatic Authentication**: Handles login and session token refresh automatically
+- **Advanced Trading**: Create positions, working orders (stop/limit), manage portfolios
+- **Account Management**: Switch accounts, update leverage settings, manage preferences
+- **Market Discovery**: Navigate asset hierarchies, explore watchlists, search instruments
+- **Historical Data**: Access trading activity, transaction history, and price data
 - **Enhanced Search**: Search markets by name or use specific epic codes (e.g., "Apple" or "AAPL")
 - **Multiple Time Resolutions**: MINUTE, HOUR, DAY, WEEK for price data
+- **Position Confirmation**: Verify trades and get deal IDs for position management
 - **Robust Error Handling**: Built-in retry logic for expired sessions
 - **No Manual Auth**: No separate authentication tool needed - handled behind the scenes
 
@@ -127,6 +162,40 @@ Successfully created a BUY position for Apple Inc. (AAPL):
 - Size: 10 shares
 - Opening price: $184.30
 - Position status: OPEN
+```
+
+### Creating Working Orders
+
+```
+You: Set a stop order to buy Tesla at $240 with a stop loss at $230
+
+AI: I'll create a stop order for Tesla with your specified levels.
+
+[Uses create_working_order tool]
+
+Successfully created a STOP order for Tesla (TSLA):
+- Order ID: WO123456
+- Direction: BUY
+- Level: $240.00
+- Stop loss: $230.00
+- Status: PENDING
+```
+
+### Managing Account Preferences
+
+```
+You: Check my current leverage settings and change FOREX leverage to 50:1
+
+AI: Let me check your account preferences and update the FOREX leverage.
+
+[Uses get_account_preferences and update_account_preferences tools]
+
+Current account preferences:
+- Hedging mode: Enabled
+- FOREX leverage: 30:1
+- STOCKS leverage: 5:1
+
+Successfully updated FOREX leverage to 50:1.
 ```
 
 ## Prerequisites for using with LLMs
