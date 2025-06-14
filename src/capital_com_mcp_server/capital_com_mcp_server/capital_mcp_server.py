@@ -1205,29 +1205,29 @@ async def delete_working_order(
 @mcp.tool()
 async def get_activity_history(
     ctx: Context,
-    from_date: Optional[str] = Field(default=None, description="Start date in format YYYY-MM-DDTHH:MM:SS (e.g., '2024-01-01T00:00:00'). Timezone info will be stripped if provided."),
-    to_date: Optional[str] = Field(default=None, description="End date in format YYYY-MM-DDTHH:MM:SS (max 1 day range). Timezone info will be stripped if provided."),
-    last_period: Optional[int] = Field(default=None, description="Time period in seconds to look back (e.g., 3600 for 1 hour, 86400 for 24 hours). API default is 600 (10 minutes), tool default is 86400 (24 hours, API max)."),
+    from_date: Optional[str] = Field(default=None, description="Start date in format YYYY-MM-DDTHH:MM:SS (e.g., '2024-01-01T00:00:00'). If not provided, defaults to 24 hours ago."),
+    to_date: Optional[str] = Field(default=None, description="End date in format YYYY-MM-DDTHH:MM:SS. MUST be within 24 hours of from_date (API enforces 1-day max range). If not provided, defaults to now."),
     detailed: bool = Field(default=False, description="Whether to include detailed information"),
-    deal_id: Optional[str] = Field(default=None, description="Filter by specific deal ID"),
-    filter_type: Optional[str] = Field(default=None, description="FIQL filter string (e.g., 'source!=DEALER;type!=POSITION;status==REJECTED;epic==OIL_CRUDE,GOLD'). Supported params: epic, source, status, type.")
+    filter_type: Optional[str] = Field(default=None, description="Filter by activity type. Use 'POSITION' to filter position-related activities."),
+    page_size: int = Field(default=20, description="Maximum number of results to return (tested up to 100)")
 ) -> Dict[str, Any]:
-    """Get account activity history (max 1 day range).
+    """Get account activity history (REQUIRES date range - STRICT 1 day maximum).
     
-    This tool retrieves the trading activity history for your account. The API defaults to the last 
-    10 minutes, but this tool defaults to 24 hours (API maximum) for more meaningful results.
+    This tool retrieves trading activity history for your account. Based on testing, the API 
+    REQUIRES a date range to return data and ENFORCES a maximum 1-day (24 hour) range.
     
-    All parameters are optional. If only 'from' OR 'to' is provided, the API automatically 
-    selects a 1-day range. Empty results are normal for new accounts or accounts with no recent activity.
+    CRITICAL LIMITATIONS:
+    - API returns 400 error if date range exceeds 24 hours
+    - Date range parameters are REQUIRED (returns empty without them)
+    - Tool will auto-adjust to_date if range exceeds 24 hours
     
     Args:
         ctx: MCP context
-        from_date: Start date in ISO format (defaults to 24 hours ago)
-        to_date: End date in ISO format (defaults to now, max 1 day range)
-        detailed: Whether to include detailed information
-        deal_id: Filter by specific deal ID
-        filter_type: Filter by activity type
-        page_size: Number of results per page
+        from_date: Start date (defaults to 24 hours ago if not provided)
+        to_date: End date (MUST be ≤24 hours from from_date, auto-adjusted if too large)
+        detailed: Whether to include detailed information (both true/false provide same detail level)
+        filter_type: Activity filter - 'POSITION' works, but may still show WORKING_ORDER entries
+        page_size: Number of results to return (default 20, tested up to 100)
         
     Returns:
         Dict[str, Any]: Account activity history with metadata
@@ -1247,7 +1247,7 @@ async def get_activity_history(
                 await ctx.error(error_msg)
                 return {"error": error_msg}
         
-        result = client.get_activity_history(from_date, to_date, last_period, detailed, deal_id, filter_type)
+        result = client.get_activity_history(from_date, to_date, detailed, filter_type, page_size)
         return result
     
     except Exception as e:
@@ -1261,23 +1261,22 @@ async def get_transaction_history(
     ctx: Context,
     from_date: Optional[str] = Field(default=None, description="Start date in format YYYY-MM-DDTHH:MM:SS (e.g., '2024-01-01T00:00:00'). Timezone info will be stripped if provided."),
     to_date: Optional[str] = Field(default=None, description="End date in format YYYY-MM-DDTHH:MM:SS. Timezone info will be stripped if provided."),
-    last_period: Optional[int] = Field(default=None, description="Time period in seconds to look back (e.g., 86400 for 1 day, 604800 for 7 days). API default is 600 (10 minutes), tool default is 604800 (7 days)."),
+    last_period: Optional[int] = Field(default=None, description="Time period in seconds to look back (e.g., 3600 for 1 hour, 86400 for 1 day, 604800 for 7 days). Not applicable if date range specified. API defaults to 600 seconds (10 minutes)."),
     transaction_type: Optional[str] = Field(default=None, description="Filter by transaction type. Options: DEPOSIT, WITHDRAWAL, TRADE, SWAP, TRADE_COMMISSION, INACTIVITY_FEE, BONUS, TRANSFER, CORPORATE_ACTION, CONVERSION, REBATE, etc.")
 ) -> Dict[str, Any]:
-    """Get transaction history.
+    """Get transaction history with date ranges, lastPeriod, or transaction type filtering.
     
-    This tool retrieves the financial transaction history for your account. The API defaults to the last 
-    10 minutes, but this tool defaults to 7 days for more meaningful results.
+    This tool retrieves the financial transaction history for your account. All parameters are optional
+    as per API documentation. If no parameters provided, API returns last 10 minutes of transactions.
     
-    All parameters are optional. Empty results are normal for new accounts or accounts with no recent 
-    financial transactions.
+    IMPORTANT: lastPeriod is not applicable when date range (from/to) is specified.
     
     Args:
         ctx: MCP context
-        from_date: Start date in ISO format (defaults to 30 days ago)
-        to_date: End date in ISO format (defaults to now)
-        transaction_type: Filter by transaction type
-        page_size: Number of results per page
+        from_date: Start date (optional, API supports date ranges)
+        to_date: End date (optional, API supports date ranges)
+        last_period: Time period in seconds (ignored if date range provided)
+        transaction_type: Filter by transaction type (DEPOSIT, WITHDRAWAL, etc.)
         
     Returns:
         Dict[str, Any]: Transaction history with metadata

@@ -792,17 +792,35 @@ class CapitalClient:
 
     # History Methods
     def get_activity_history(self, from_date: Optional[str] = None, to_date: Optional[str] = None, 
-                           last_period: Optional[int] = None, detailed: bool = False, 
-                           deal_id: Optional[str] = None, filter_type: Optional[str] = None) -> Dict[str, Any]:
-        """Get account activity history (max 1 day range)"""
+                           detailed: bool = False, filter_type: Optional[str] = None, 
+                           page_size: int = 20) -> Dict[str, Any]:
+        """Get account activity history (REQUIRES date range - max 1 day range)"""
         try:
-            params = {}
-            
-            # API defaults to lastPeriod=600 (10 minutes) if no parameters provided
-            # For better user experience, we default to 24 hours (86400 seconds, which is the max allowed)
-            if not from_date and not to_date and not last_period:
-                last_period = 86400  # Max allowed by API: 24 hours
-                logger.info(f"No time parameters provided, using lastPeriod of {last_period} seconds (24 hours, API max) instead of API default 10 minutes")
+            # Based on testing: API REQUIRES date range parameters to return data
+            # API enforces MAXIMUM 1 DAY (24 hours) between from and to dates
+            if not from_date or not to_date:
+                now = datetime.utcnow()
+                if not to_date:
+                    to_date = now.strftime("%Y-%m-%dT%H:%M:%S")
+                if not from_date:
+                    from_date = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%S")
+                logger.info(f"Date range required by API. Using: from={from_date} to={to_date}")
+            else:
+                # Validate that date range is within 1 day limit
+                try:
+                    from_dt = datetime.strptime(from_date.split('+')[0].replace('Z', ''), "%Y-%m-%dT%H:%M:%S")
+                    to_dt = datetime.strptime(to_date.split('+')[0].replace('Z', ''), "%Y-%m-%dT%H:%M:%S")
+                    
+                    time_diff = to_dt - from_dt
+                    if time_diff.total_seconds() > 86400:  # More than 24 hours
+                        logger.warning(f"Date range too large: {time_diff.total_seconds()} seconds. API limit is 86400 seconds (24 hours)")
+                        # Auto-adjust to_date to be exactly 24 hours from from_date
+                        to_dt = from_dt + timedelta(hours=24)
+                        to_date = to_dt.strftime("%Y-%m-%dT%H:%M:%S")
+                        logger.info(f"Adjusted to_date to respect 24-hour limit: {to_date}")
+                except ValueError as e:
+                    logger.error(f"Error parsing dates: {e}")
+                    return {"error": f"Invalid date format: {e}"}
             
             # Format dates if provided (Capital.com expects YYYY-MM-DDTHH:MM:SS format, not ISO with timezone)
             if from_date and from_date.endswith('Z'):
@@ -814,18 +832,17 @@ class CapitalClient:
             if to_date and '+' in to_date:
                 to_date = to_date.split('+')[0]  # Remove timezone offset
             
-            if from_date:
-                params["from"] = from_date
-            if to_date:
-                params["to"] = to_date
-            if last_period:
-                params["lastPeriod"] = last_period
+            params = {
+                "from": from_date,
+                "to": to_date
+            }
+            
             if detailed:
                 params["detailed"] = str(detailed).lower()
-            if deal_id:
-                params["dealId"] = deal_id
             if filter_type:
                 params["filter"] = filter_type
+            if page_size and page_size != 20:  # Only add if different from default
+                params["pageSize"] = page_size
                 
             logger.info(f"Getting activity history with params: {params}")
             response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/history/activity", params=params)
@@ -838,17 +855,15 @@ class CapitalClient:
                 result["_metadata"] = {
                     "requested_from": from_date,
                     "requested_to": to_date,
-                    "last_period_seconds": last_period,
                     "total_activities": len(result.get("activities", [])),
-                    "api_default_note": "API defaults to last 10 minutes if no time parameters provided"
+                    "page_size": page_size,
+                    "filter_applied": filter_type,
+                    "detailed_mode": detailed,
+                    "api_note": "API requires date range parameters to return data"
                 }
                 
                 if not result.get("activities"):
-                    if last_period:
-                        hours = last_period / 3600
-                        result["_info"] = f"No activities found in the last {hours} hours. This could be normal for new accounts or accounts with no recent trading activity."
-                    else:
-                        result["_info"] = "No activities found in the specified time range. This could be normal for new accounts or accounts with no recent trading activity."
+                    result["_info"] = f"No activities found between {from_date} and {to_date}. This could be normal for new accounts or accounts with no recent trading activity in this time range."
                     
                 return result
             else:
@@ -860,34 +875,40 @@ class CapitalClient:
 
     def get_transaction_history(self, from_date: Optional[str] = None, to_date: Optional[str] = None,
                               last_period: Optional[int] = None, transaction_type: Optional[str] = None) -> Dict[str, Any]:
-        """Get transaction history"""
+        """Get transaction history - supports date ranges, lastPeriod, and transaction type filtering"""
         try:
             params = {}
             
-            # API defaults to lastPeriod=600 (10 minutes) if no parameters provided
-            # For transactions, we use a longer period since they're less frequent than activities
-            if not from_date and not to_date and not last_period:
-                last_period = 604800  # 7 days (604800 seconds) - reasonable default for transactions
-                logger.info(f"No time parameters provided, using lastPeriod of {last_period} seconds (7 days) instead of API default 10 minutes")
-            
             # Format dates if provided (Capital.com expects YYYY-MM-DDTHH:MM:SS format, not ISO with timezone)
-            if from_date and from_date.endswith('Z'):
-                from_date = from_date[:-1]  # Remove 'Z' timezone indicator
-            if to_date and to_date.endswith('Z'):
-                to_date = to_date[:-1]  # Remove 'Z' timezone indicator
-            if from_date and '+' in from_date:
-                from_date = from_date.split('+')[0]  # Remove timezone offset
-            if to_date and '+' in to_date:
-                to_date = to_date.split('+')[0]  # Remove timezone offset
-            
             if from_date:
+                if from_date.endswith('Z'):
+                    from_date = from_date[:-1]  # Remove 'Z' timezone indicator
+                if '+' in from_date:
+                    from_date = from_date.split('+')[0]  # Remove timezone offset
                 params["from"] = from_date
+                logger.info(f"Using from_date: {from_date}")
+            
             if to_date:
+                if to_date.endswith('Z'):
+                    to_date = to_date[:-1]  # Remove 'Z' timezone indicator
+                if '+' in to_date:
+                    to_date = to_date.split('+')[0]  # Remove timezone offset
                 params["to"] = to_date
-            if last_period:
+                logger.info(f"Using to_date: {to_date}")
+            
+            # Note: lastPeriod is not applicable if a date range has been specified
+            if last_period and not (from_date or to_date):
                 params["lastPeriod"] = last_period
+                logger.info(f"Using lastPeriod of {last_period} seconds")
+            elif last_period and (from_date or to_date):
+                logger.warning("lastPeriod ignored when date range is specified (per API documentation)")
+            
             if transaction_type:
                 params["type"] = transaction_type
+                logger.info(f"Filtering by transaction type: {transaction_type}")
+            
+            if not params:
+                logger.info("No parameters specified, API will use default 600 seconds (10 minutes)")
                 
             logger.info(f"Getting transaction history with params: {params}")
             response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/history/transactions", params=params)
@@ -900,18 +921,27 @@ class CapitalClient:
                 result["_metadata"] = {
                     "requested_from": from_date,
                     "requested_to": to_date,
-                    "last_period_seconds": last_period,
+                    "last_period_seconds": last_period if not (from_date or to_date) else None,
                     "total_transactions": len(result.get("transactions", [])),
                     "transaction_type_filter": transaction_type,
-                    "api_default_note": "API defaults to last 10 minutes if no time parameters provided"
+                    "api_note": "API defaults to last 10 minutes if no parameters provided"
                 }
                 
                 if not result.get("transactions"):
-                    if last_period:
-                        days = last_period / 86400
-                        result["_info"] = f"No transactions found in the last {days} days. This could be normal for new accounts or accounts with no recent financial activity."
+                    if from_date and to_date:
+                        result["_info"] = f"No transactions found between {from_date} and {to_date}. This could be normal for accounts with no financial activity in this period."
+                    elif last_period:
+                        if last_period >= 86400:
+                            days = last_period / 86400
+                            time_desc = f"last {days:.1f} days"
+                        elif last_period >= 3600:
+                            hours = last_period / 3600
+                            time_desc = f"last {hours:.1f} hours"
+                        else:
+                            time_desc = f"last {last_period} seconds"
+                        result["_info"] = f"No transactions found in the {time_desc}. This could be normal for accounts with no recent financial activity."
                     else:
-                        result["_info"] = "No transactions found in the specified time range. This could be normal for new accounts or accounts with no recent financial activity."
+                        result["_info"] = "No transactions found in the default time range (last 10 minutes). This could be normal for accounts with no recent financial activity."
                     
                 return result
             else:

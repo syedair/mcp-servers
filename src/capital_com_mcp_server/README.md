@@ -37,8 +37,8 @@ The following tools are exposed by the MCP server:
 - `delete_working_order`: Cancel and remove working orders
 
 ### History & Reporting
-- `get_activity_history`: Get trading activity history with smart defaults (24 hours vs API's 10 minutes) and FIQL filtering
-- `get_transaction_history`: Get financial transaction history with 7-day default and transaction type filtering
+- `get_activity_history`: Get trading activity history with automatic date range handling (24-hour max) and FIQL filtering
+- `get_transaction_history`: Get financial transaction history with full date range support and transaction type filtering (all parameters optional per API spec)
 - `confirm_deal`: Confirm position status after creation and get dealId for management
 
 ### Utilities
@@ -52,7 +52,7 @@ The following tools are exposed by the MCP server:
 - **Advanced Trading**: Create positions, working orders (stop/limit), manage portfolios
 - **Account Management**: Switch accounts, update leverage settings, manage preferences
 - **Market Discovery**: Navigate asset hierarchies, explore watchlists, search instruments
-- **Smart Historical Data**: Trading activity (24h default) and transaction history (7d default) with proper API compliance
+- **Smart Historical Data**: Trading activity (24h automatic range) and transaction history (full date range support) with proper API compliance
 - **Enhanced Search**: Search markets by name or use specific epic codes (e.g., "Apple" or "AAPL")
 - **Multiple Time Resolutions**: MINUTE, HOUR, DAY, WEEK for price data
 - **Position Confirmation**: Verify trades and get deal IDs for position management
@@ -221,7 +221,7 @@ You: Get my transaction history for the last week, filter for deposits only
 
 AI: I'll retrieve your deposit transactions from the last week.
 
-[Uses get_transaction_history with last_period=604800, transaction_type="DEPOSIT"]
+[Uses get_transaction_history with from_date="2024-06-07T00:00:00", to_date="2024-06-14T23:59:59", transaction_type="DEPOSIT"]
 
 Deposit transactions (last 7 days):
 - 2024-06-10: $1,000.00 deposit via bank transfer
