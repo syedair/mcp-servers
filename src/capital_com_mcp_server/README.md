@@ -37,8 +37,8 @@ The following tools are exposed by the MCP server:
 - `delete_working_order`: Cancel and remove working orders
 
 ### History & Reporting
-- `get_activity_history`: Get trading activity history for your account (max 1 day range)
-- `get_transaction_history`: Get financial transaction history
+- `get_activity_history`: Get trading activity history with smart defaults (24 hours vs API's 10 minutes) and FIQL filtering
+- `get_transaction_history`: Get financial transaction history with 7-day default and transaction type filtering
 - `confirm_deal`: Confirm position status after creation and get dealId for management
 
 ### Utilities
@@ -52,12 +52,13 @@ The following tools are exposed by the MCP server:
 - **Advanced Trading**: Create positions, working orders (stop/limit), manage portfolios
 - **Account Management**: Switch accounts, update leverage settings, manage preferences
 - **Market Discovery**: Navigate asset hierarchies, explore watchlists, search instruments
-- **Historical Data**: Access trading activity, transaction history, and price data
+- **Smart Historical Data**: Trading activity (24h default) and transaction history (7d default) with proper API compliance
 - **Enhanced Search**: Search markets by name or use specific epic codes (e.g., "Apple" or "AAPL")
 - **Multiple Time Resolutions**: MINUTE, HOUR, DAY, WEEK for price data
 - **Position Confirmation**: Verify trades and get deal IDs for position management
 - **Robust Error Handling**: Built-in retry logic for expired sessions
 - **No Manual Auth**: No separate authentication tool needed - handled behind the scenes
+- **API-Compliant Formatting**: Automatic timezone handling and proper date format conversion
 
 ## Configuration
 
@@ -196,6 +197,37 @@ Current account preferences:
 - STOCKS leverage: 5:1
 
 Successfully updated FOREX leverage to 50:1.
+```
+
+### History and Transaction Queries
+
+```
+You: Show me my trading activity from the last 24 hours with detailed information
+
+AI: I'll get your detailed trading activity from the last 24 hours.
+
+[Uses get_activity_history with detailed=true]
+
+Trading activity (last 24 hours):
+- Position opened: AAPL BUY 10 shares at $184.30
+- Stop loss updated: TSLA position, new SL at $240.00
+- Working order filled: NVDA LIMIT order executed at $520.00
+
+Total activities: 3
+```
+
+```
+You: Get my transaction history for the last week, filter for deposits only
+
+AI: I'll retrieve your deposit transactions from the last week.
+
+[Uses get_transaction_history with last_period=604800, transaction_type="DEPOSIT"]
+
+Deposit transactions (last 7 days):
+- 2024-06-10: $1,000.00 deposit via bank transfer
+- 2024-06-08: $500.00 deposit via credit card
+
+Total deposits: $1,500.00
 ```
 
 ## Prerequisites for using with LLMs

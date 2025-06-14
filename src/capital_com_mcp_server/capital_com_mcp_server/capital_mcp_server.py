@@ -1205,28 +1205,32 @@ async def delete_working_order(
 @mcp.tool()
 async def get_activity_history(
     ctx: Context,
-    from_date: Optional[str] = Field(default=None, description="Start date in ISO format (e.g., '2024-01-01T00:00:00')"),
-    to_date: Optional[str] = Field(default=None, description="End date in ISO format (max 1 day range)"),
+    from_date: Optional[str] = Field(default=None, description="Start date in format YYYY-MM-DDTHH:MM:SS (e.g., '2024-01-01T00:00:00'). Timezone info will be stripped if provided."),
+    to_date: Optional[str] = Field(default=None, description="End date in format YYYY-MM-DDTHH:MM:SS (max 1 day range). Timezone info will be stripped if provided."),
+    last_period: Optional[int] = Field(default=None, description="Time period in seconds to look back (e.g., 3600 for 1 hour, 86400 for 24 hours). API default is 600 (10 minutes), tool default is 86400 (24 hours, API max)."),
     detailed: bool = Field(default=False, description="Whether to include detailed information"),
     deal_id: Optional[str] = Field(default=None, description="Filter by specific deal ID"),
-    filter_type: Optional[str] = Field(default=None, description="Filter by activity type"),
-    page_size: int = Field(default=20, description="Number of results per page")
+    filter_type: Optional[str] = Field(default=None, description="FIQL filter string (e.g., 'source!=DEALER;type!=POSITION;status==REJECTED;epic==OIL_CRUDE,GOLD'). Supported params: epic, source, status, type.")
 ) -> Dict[str, Any]:
     """Get account activity history (max 1 day range).
     
-    This tool retrieves the trading activity history for your account.
+    This tool retrieves the trading activity history for your account. The API defaults to the last 
+    10 minutes, but this tool defaults to 24 hours (API maximum) for more meaningful results.
+    
+    All parameters are optional. If only 'from' OR 'to' is provided, the API automatically 
+    selects a 1-day range. Empty results are normal for new accounts or accounts with no recent activity.
     
     Args:
         ctx: MCP context
-        from_date: Start date in ISO format
-        to_date: End date in ISO format (max 1 day range)
+        from_date: Start date in ISO format (defaults to 24 hours ago)
+        to_date: End date in ISO format (defaults to now, max 1 day range)
         detailed: Whether to include detailed information
         deal_id: Filter by specific deal ID
         filter_type: Filter by activity type
         page_size: Number of results per page
         
     Returns:
-        Dict[str, Any]: Account activity history
+        Dict[str, Any]: Account activity history with metadata
     """
     global authenticated, client
     
@@ -1243,7 +1247,7 @@ async def get_activity_history(
                 await ctx.error(error_msg)
                 return {"error": error_msg}
         
-        result = client.get_activity_history(from_date, to_date, detailed, deal_id, filter_type, page_size)
+        result = client.get_activity_history(from_date, to_date, last_period, detailed, deal_id, filter_type)
         return result
     
     except Exception as e:
@@ -1255,24 +1259,28 @@ async def get_activity_history(
 @mcp.tool()
 async def get_transaction_history(
     ctx: Context,
-    from_date: Optional[str] = Field(default=None, description="Start date in ISO format (e.g., '2024-01-01T00:00:00')"),
-    to_date: Optional[str] = Field(default=None, description="End date in ISO format"),
-    transaction_type: Optional[str] = Field(default=None, description="Filter by transaction type"),
-    page_size: int = Field(default=20, description="Number of results per page")
+    from_date: Optional[str] = Field(default=None, description="Start date in format YYYY-MM-DDTHH:MM:SS (e.g., '2024-01-01T00:00:00'). Timezone info will be stripped if provided."),
+    to_date: Optional[str] = Field(default=None, description="End date in format YYYY-MM-DDTHH:MM:SS. Timezone info will be stripped if provided."),
+    last_period: Optional[int] = Field(default=None, description="Time period in seconds to look back (e.g., 86400 for 1 day, 604800 for 7 days). API default is 600 (10 minutes), tool default is 604800 (7 days)."),
+    transaction_type: Optional[str] = Field(default=None, description="Filter by transaction type. Options: DEPOSIT, WITHDRAWAL, TRADE, SWAP, TRADE_COMMISSION, INACTIVITY_FEE, BONUS, TRANSFER, CORPORATE_ACTION, CONVERSION, REBATE, etc.")
 ) -> Dict[str, Any]:
     """Get transaction history.
     
-    This tool retrieves the financial transaction history for your account.
+    This tool retrieves the financial transaction history for your account. The API defaults to the last 
+    10 minutes, but this tool defaults to 7 days for more meaningful results.
+    
+    All parameters are optional. Empty results are normal for new accounts or accounts with no recent 
+    financial transactions.
     
     Args:
         ctx: MCP context
-        from_date: Start date in ISO format
-        to_date: End date in ISO format
+        from_date: Start date in ISO format (defaults to 30 days ago)
+        to_date: End date in ISO format (defaults to now)
         transaction_type: Filter by transaction type
         page_size: Number of results per page
         
     Returns:
-        Dict[str, Any]: Transaction history
+        Dict[str, Any]: Transaction history with metadata
     """
     global authenticated, client
     
@@ -1289,7 +1297,7 @@ async def get_transaction_history(
                 await ctx.error(error_msg)
                 return {"error": error_msg}
         
-        result = client.get_transaction_history(from_date, to_date, transaction_type, page_size)
+        result = client.get_transaction_history(from_date, to_date, last_period, transaction_type)
         return result
     
     except Exception as e:

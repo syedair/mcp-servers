@@ -4,6 +4,7 @@ import requests
 import json
 import logging
 import sys
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from typing import Dict, List, Optional, Union, Any
 
@@ -791,50 +792,131 @@ class CapitalClient:
 
     # History Methods
     def get_activity_history(self, from_date: Optional[str] = None, to_date: Optional[str] = None, 
-                           detailed: bool = False, deal_id: Optional[str] = None, 
-                           filter_type: Optional[str] = None, page_size: int = 20) -> Dict[str, Any]:
+                           last_period: Optional[int] = None, detailed: bool = False, 
+                           deal_id: Optional[str] = None, filter_type: Optional[str] = None) -> Dict[str, Any]:
         """Get account activity history (max 1 day range)"""
         try:
-            params = {"detailed": str(detailed).lower(), "pageSize": page_size}
+            params = {}
+            
+            # API defaults to lastPeriod=600 (10 minutes) if no parameters provided
+            # For better user experience, we default to 24 hours (86400 seconds, which is the max allowed)
+            if not from_date and not to_date and not last_period:
+                last_period = 86400  # Max allowed by API: 24 hours
+                logger.info(f"No time parameters provided, using lastPeriod of {last_period} seconds (24 hours, API max) instead of API default 10 minutes")
+            
+            # Format dates if provided (Capital.com expects YYYY-MM-DDTHH:MM:SS format, not ISO with timezone)
+            if from_date and from_date.endswith('Z'):
+                from_date = from_date[:-1]  # Remove 'Z' timezone indicator
+            if to_date and to_date.endswith('Z'):
+                to_date = to_date[:-1]  # Remove 'Z' timezone indicator
+            if from_date and '+' in from_date:
+                from_date = from_date.split('+')[0]  # Remove timezone offset
+            if to_date and '+' in to_date:
+                to_date = to_date.split('+')[0]  # Remove timezone offset
             
             if from_date:
                 params["from"] = from_date
             if to_date:
                 params["to"] = to_date
+            if last_period:
+                params["lastPeriod"] = last_period
+            if detailed:
+                params["detailed"] = str(detailed).lower()
             if deal_id:
                 params["dealId"] = deal_id
             if filter_type:
                 params["filter"] = filter_type
                 
+            logger.info(f"Getting activity history with params: {params}")
             response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/history/activity", params=params)
+            
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                logger.info(f"Activity history response: {result}")
+                
+                # Add metadata about the request
+                result["_metadata"] = {
+                    "requested_from": from_date,
+                    "requested_to": to_date,
+                    "last_period_seconds": last_period,
+                    "total_activities": len(result.get("activities", [])),
+                    "api_default_note": "API defaults to last 10 minutes if no time parameters provided"
+                }
+                
+                if not result.get("activities"):
+                    if last_period:
+                        hours = last_period / 3600
+                        result["_info"] = f"No activities found in the last {hours} hours. This could be normal for new accounts or accounts with no recent trading activity."
+                    else:
+                        result["_info"] = "No activities found in the specified time range. This could be normal for new accounts or accounts with no recent trading activity."
+                    
+                return result
             else:
                 logger.error(f"Failed to get activity history: {response.status_code} - {response.text}")
-                return {"error": f"Failed to get activity history: {response.status_code}"}
+                return {"error": f"Failed to get activity history: {response.status_code}", "details": response.text}
         except Exception as e:
             logger.error(f"Error getting activity history: {str(e)}")
             return {"error": str(e)}
 
     def get_transaction_history(self, from_date: Optional[str] = None, to_date: Optional[str] = None,
-                              transaction_type: Optional[str] = None, page_size: int = 20) -> Dict[str, Any]:
+                              last_period: Optional[int] = None, transaction_type: Optional[str] = None) -> Dict[str, Any]:
         """Get transaction history"""
         try:
-            params = {"pageSize": page_size}
+            params = {}
+            
+            # API defaults to lastPeriod=600 (10 minutes) if no parameters provided
+            # For transactions, we use a longer period since they're less frequent than activities
+            if not from_date and not to_date and not last_period:
+                last_period = 604800  # 7 days (604800 seconds) - reasonable default for transactions
+                logger.info(f"No time parameters provided, using lastPeriod of {last_period} seconds (7 days) instead of API default 10 minutes")
+            
+            # Format dates if provided (Capital.com expects YYYY-MM-DDTHH:MM:SS format, not ISO with timezone)
+            if from_date and from_date.endswith('Z'):
+                from_date = from_date[:-1]  # Remove 'Z' timezone indicator
+            if to_date and to_date.endswith('Z'):
+                to_date = to_date[:-1]  # Remove 'Z' timezone indicator
+            if from_date and '+' in from_date:
+                from_date = from_date.split('+')[0]  # Remove timezone offset
+            if to_date and '+' in to_date:
+                to_date = to_date.split('+')[0]  # Remove timezone offset
             
             if from_date:
                 params["from"] = from_date
             if to_date:
                 params["to"] = to_date
+            if last_period:
+                params["lastPeriod"] = last_period
             if transaction_type:
                 params["type"] = transaction_type
                 
+            logger.info(f"Getting transaction history with params: {params}")
             response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/history/transactions", params=params)
+            
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                logger.info(f"Transaction history response: {result}")
+                
+                # Add metadata about the request
+                result["_metadata"] = {
+                    "requested_from": from_date,
+                    "requested_to": to_date,
+                    "last_period_seconds": last_period,
+                    "total_transactions": len(result.get("transactions", [])),
+                    "transaction_type_filter": transaction_type,
+                    "api_default_note": "API defaults to last 10 minutes if no time parameters provided"
+                }
+                
+                if not result.get("transactions"):
+                    if last_period:
+                        days = last_period / 86400
+                        result["_info"] = f"No transactions found in the last {days} days. This could be normal for new accounts or accounts with no recent financial activity."
+                    else:
+                        result["_info"] = "No transactions found in the specified time range. This could be normal for new accounts or accounts with no recent financial activity."
+                    
+                return result
             else:
                 logger.error(f"Failed to get transaction history: {response.status_code} - {response.text}")
-                return {"error": f"Failed to get transaction history: {response.status_code}"}
+                return {"error": f"Failed to get transaction history: {response.status_code}", "details": response.text}
         except Exception as e:
             logger.error(f"Error getting transaction history: {str(e)}")
             return {"error": str(e)}
