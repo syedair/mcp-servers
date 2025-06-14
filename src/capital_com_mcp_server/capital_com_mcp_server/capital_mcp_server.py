@@ -1066,12 +1066,16 @@ async def create_working_order(
 
 @mcp.tool()
 async def get_working_orders(ctx: Context) -> Dict[str, Any]:
-    """Get all working orders.
+    """Get all working orders (may have visibility issues with newly created orders).
     
-    This tool retrieves all pending working orders (stop and limit orders).
+    This tool retrieves all pending working orders (stop and limit orders). Based on testing:
+    - Orders created with create_working_order may not appear immediately
+    - Successfully created orders (with dealReference) sometimes don't show in this list
+    - May be due to demo account behavior or API processing delays
+    - Essential for finding correct working order IDs for update/delete operations
     
     Returns:
-        Dict[str, Any]: List of working orders
+        Dict[str, Any]: List of working orders with metadata about potential visibility issues
     """
     global authenticated, client
     
@@ -1100,18 +1104,24 @@ async def get_working_orders(ctx: Context) -> Dict[str, Any]:
 @mcp.tool()
 async def update_working_order(
     ctx: Context,
-    working_order_id: str = Field(description="The working order ID to update"),
+    working_order_id: str = Field(description="The working order ID to update (NOT the dealReference from creation - use get_working_orders to find the correct ID)"),
     level: Optional[float] = Field(default=None, description="New price level (optional)"),
     stop_level: Optional[float] = Field(default=None, description="New stop loss level (optional)"),
     profit_level: Optional[float] = Field(default=None, description="New take profit level (optional)")
 ) -> Dict[str, Any]:
-    """Update a working order.
+    """Update a working order (REQUIRES actual working order ID, not dealReference).
     
-    This tool updates the parameters of an existing working order.
+    This tool updates the parameters of an existing working order. Based on testing:
+    - Requires the actual working order ID from get_working_orders(), not the dealReference from creation
+    - Currently experiencing 400 errors - may be due to demo account limitations or ID mismatch
+    - At least one parameter must be provided for update
+    
+    IMPORTANT: Use get_working_orders() first to find the correct working order ID for orders
+    created with create_working_order(). The dealReference is different from the working order ID.
     
     Args:
         ctx: MCP context
-        working_order_id: The working order ID to update
+        working_order_id: The working order ID (from get_working_orders, not dealReference from creation)
         level: New price level (optional)
         stop_level: New stop loss level (optional)
         profit_level: New take profit level (optional)
@@ -1158,18 +1168,24 @@ async def update_working_order(
 @mcp.tool()
 async def delete_working_order(
     ctx: Context,
-    working_order_id: str = Field(description="The working order ID to delete")
+    working_order_id: str = Field(description="The working order ID to delete (NOT the dealReference from creation - use get_working_orders to find the correct ID)")
 ) -> Dict[str, Any]:
-    """Delete a working order.
+    """Delete a working order (REQUIRES actual working order ID, not dealReference).
     
-    This tool cancels and removes a working order.
+    This tool cancels and removes a working order. Based on testing:
+    - Requires the actual working order ID from get_working_orders(), not the dealReference from creation
+    - Currently experiencing 400 errors - may be due to demo account limitations or ID mismatch
+    - Orders may not be visible in get_working_orders() immediately after creation
+    
+    IMPORTANT: Use get_working_orders() first to find the correct working order ID for orders
+    created with create_working_order(). The dealReference is different from the working order ID.
     
     Args:
         ctx: MCP context
-        working_order_id: The working order ID to delete
+        working_order_id: The working order ID (from get_working_orders, not dealReference from creation)
         
     Returns:
-        Dict[str, Any]: Working order deletion result
+        Dict[str, Any]: Working order deletion result with error details if failed
     """
     global authenticated, client
     

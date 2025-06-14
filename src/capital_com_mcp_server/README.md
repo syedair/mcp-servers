@@ -31,10 +31,10 @@ The following tools are exposed by the MCP server:
 - `get_watchlist_contents`: Get contents of a specific watchlist
 
 ### Working Orders Management
-- `create_working_order`: Create stop or limit orders that execute when market reaches specified level
-- `get_working_orders`: Get all pending working orders (stop and limit orders)
-- `update_working_order`: Update parameters of existing working orders
-- `delete_working_order`: Cancel and remove working orders
+- `create_working_order`: Create stop or limit orders that execute when market reaches specified level (returns dealReference for tracking)
+- `get_working_orders`: Get all pending working orders (note: newly created orders may not appear immediately)
+- `update_working_order`: Update parameters of existing working orders (requires working order ID from get_working_orders, not dealReference)
+- `delete_working_order`: Cancel and remove working orders (requires working order ID from get_working_orders, not dealReference)
 
 ### History & Reporting
 - `get_activity_history`: Get trading activity history with lastPeriod support (max 24h), deal ID filtering, and FIQL filtering (date ranges documented but currently limited)
@@ -175,11 +175,11 @@ AI: I'll create a stop order for Tesla with your specified levels.
 [Uses create_working_order tool]
 
 Successfully created a STOP order for Tesla (TSLA):
-- Order ID: WO123456
+- Deal Reference: o_17a6e937-6947-4825-92f1-9c690df802a9
 - Direction: BUY
 - Level: $240.00
 - Stop loss: $230.00
-- Status: PENDING
+- Note: Order created successfully. Use get_working_orders() to find the working order ID for management operations.
 ```
 
 ### Managing Account Preferences

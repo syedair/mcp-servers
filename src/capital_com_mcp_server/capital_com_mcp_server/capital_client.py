@@ -731,13 +731,31 @@ class CapitalClient:
                 data["stopLevel"] = stop_level
             if profit_level is not None:
                 data["profitLevel"] = profit_level
-                
+            
+            logger.info(f"Creating working order with data: {data}")
             response = self._make_authenticated_request("POST", f"{self.base_url}/api/v1/workingorders", json=data)
+            
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                logger.info(f"Working order created: {result}")
+                
+                # Add helpful metadata
+                if "dealReference" in result:
+                    result["_metadata"] = {
+                        "note": "dealReference returned is for order tracking. To manage this order, use get_working_orders() to find the actual working order ID.",
+                        "next_steps": "Orders may take time to appear in get_working_orders(). Use the dealReference to track order status.",
+                        "management_note": "For update/delete operations, you need the working order ID from get_working_orders(), not this dealReference."
+                    }
+                
+                return result
             else:
-                logger.error(f"Failed to create working order: {response.status_code} - {response.text}")
-                return {"error": f"Failed to create working order: {response.status_code}"}
+                error_details = response.text
+                logger.error(f"Failed to create working order: {response.status_code} - {error_details}")
+                return {
+                    "error": f"Failed to create working order: {response.status_code}",
+                    "details": error_details,
+                    "attempted_data": data
+                }
         except Exception as e:
             logger.error(f"Error creating working order: {str(e)}")
             return {"error": str(e)}
@@ -745,19 +763,38 @@ class CapitalClient:
     def get_working_orders(self) -> Dict[str, Any]:
         """Get all working orders"""
         try:
+            logger.info("Getting working orders from API")
             response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/workingorders")
+            
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                logger.info(f"Working orders response: {result}")
+                
+                # Add metadata for debugging
+                result["_metadata"] = {
+                    "total_orders": len(result.get("workingOrders", [])),
+                    "api_note": "Working orders may not appear immediately after creation",
+                    "endpoint_used": "/api/v1/workingorders"
+                }
+                
+                if not result.get("workingOrders"):
+                    result["_info"] = "No working orders found. Orders may take time to appear after creation, or this could be normal for accounts with no pending orders."
+                
+                return result
             else:
                 logger.error(f"Failed to get working orders: {response.status_code} - {response.text}")
-                return {"error": f"Failed to get working orders: {response.status_code}"}
+                return {"error": f"Failed to get working orders: {response.status_code}", "details": response.text}
         except Exception as e:
             logger.error(f"Error getting working orders: {str(e)}")
             return {"error": str(e)}
 
     def update_working_order(self, working_order_id: str, level: Optional[float] = None,
                            stop_level: Optional[float] = None, profit_level: Optional[float] = None) -> Dict[str, Any]:
-        """Update a working order"""
+        """Update a working order
+        
+        Note: working_order_id should be the actual working order ID, not the dealReference from creation.
+        Use get_working_orders() to find the correct ID for orders created with create_working_order().
+        """
         try:
             data = {}
             if level is not None:
@@ -766,26 +803,50 @@ class CapitalClient:
                 data["stopLevel"] = stop_level
             if profit_level is not None:
                 data["profitLevel"] = profit_level
+            
+            if not data:
+                return {"error": "At least one parameter (level, stop_level, profit_level) must be provided"}
                 
+            logger.info(f"Updating working order {working_order_id} with data: {data}")
             response = self._make_authenticated_request("PUT", f"{self.base_url}/api/v1/workingorders/{working_order_id}", json=data)
+            
             if response.status_code == 200:
-                return {"success": True, "message": f"Working order {working_order_id} updated"}
+                return {"success": True, "message": f"Working order {working_order_id} updated", "updated_data": data}
             else:
-                logger.error(f"Failed to update working order: {response.status_code} - {response.text}")
-                return {"error": f"Failed to update working order: {response.status_code}"}
+                error_details = response.text
+                logger.error(f"Failed to update working order: {response.status_code} - {error_details}")
+                return {
+                    "error": f"Failed to update working order: {response.status_code}", 
+                    "details": error_details,
+                    "attempted_id": working_order_id,
+                    "attempted_data": data,
+                    "note": "Ensure working_order_id is correct. dealReference from creation may not be the same as working order ID."
+                }
         except Exception as e:
             logger.error(f"Error updating working order: {str(e)}")
             return {"error": str(e)}
 
     def delete_working_order(self, working_order_id: str) -> Dict[str, Any]:
-        """Delete a working order"""
+        """Delete a working order
+        
+        Note: working_order_id should be the actual working order ID, not the dealReference from creation.
+        Use get_working_orders() to find the correct ID for orders created with create_working_order().
+        """
         try:
+            logger.info(f"Deleting working order {working_order_id}")
             response = self._make_authenticated_request("DELETE", f"{self.base_url}/api/v1/workingorders/{working_order_id}")
+            
             if response.status_code == 200:
                 return {"success": True, "message": f"Working order {working_order_id} deleted"}
             else:
-                logger.error(f"Failed to delete working order: {response.status_code} - {response.text}")
-                return {"error": f"Failed to delete working order: {response.status_code}"}
+                error_details = response.text
+                logger.error(f"Failed to delete working order: {response.status_code} - {error_details}")
+                return {
+                    "error": f"Failed to delete working order: {response.status_code}",
+                    "details": error_details,
+                    "attempted_id": working_order_id,
+                    "note": "Ensure working_order_id is correct. dealReference from creation may not be the same as working order ID."
+                }
         except Exception as e:
             logger.error(f"Error deleting working order: {str(e)}")
             return {"error": str(e)}
