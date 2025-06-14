@@ -792,57 +792,59 @@ class CapitalClient:
 
     # History Methods
     def get_activity_history(self, from_date: Optional[str] = None, to_date: Optional[str] = None, 
-                           detailed: bool = False, filter_type: Optional[str] = None, 
-                           page_size: int = 20) -> Dict[str, Any]:
-        """Get account activity history (REQUIRES date range - max 1 day range)"""
+                           last_period: Optional[int] = None, detailed: bool = False, 
+                           deal_id: Optional[str] = None, filter_type: Optional[str] = None) -> Dict[str, Any]:
+        """Get account activity history - supports both date ranges and lastPeriod (max 86400 seconds)"""
         try:
-            # Based on testing: API REQUIRES date range parameters to return data
-            # API enforces MAXIMUM 1 DAY (24 hours) between from and to dates
-            if not from_date or not to_date:
-                now = datetime.utcnow()
-                if not to_date:
-                    to_date = now.strftime("%Y-%m-%dT%H:%M:%S")
-                if not from_date:
-                    from_date = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%S")
-                logger.info(f"Date range required by API. Using: from={from_date} to={to_date}")
-            else:
-                # Validate that date range is within 1 day limit
+            params = {}
+            
+            # Format dates if provided (Capital.com expects YYYY-MM-DDTHH:MM:SS format, not ISO with timezone)
+            if from_date:
+                if from_date.endswith('Z'):
+                    from_date = from_date[:-1]  # Remove 'Z' timezone indicator
+                if '+' in from_date:
+                    from_date = from_date.split('+')[0]  # Remove timezone offset
+                params["from"] = from_date
+                logger.info(f"Using from_date: {from_date}")
+            
+            if to_date:
+                if to_date.endswith('Z'):
+                    to_date = to_date[:-1]  # Remove 'Z' timezone indicator
+                if '+' in to_date:
+                    to_date = to_date.split('+')[0]  # Remove timezone offset
+                params["to"] = to_date
+                logger.info(f"Using to_date: {to_date}")
+                
+            # Validate date range if both provided (max 1 day per API docs)
+            if from_date and to_date:
                 try:
                     from_dt = datetime.strptime(from_date.split('+')[0].replace('Z', ''), "%Y-%m-%dT%H:%M:%S")
                     to_dt = datetime.strptime(to_date.split('+')[0].replace('Z', ''), "%Y-%m-%dT%H:%M:%S")
                     
                     time_diff = to_dt - from_dt
                     if time_diff.total_seconds() > 86400:  # More than 24 hours
-                        logger.warning(f"Date range too large: {time_diff.total_seconds()} seconds. API limit is 86400 seconds (24 hours)")
-                        # Auto-adjust to_date to be exactly 24 hours from from_date
-                        to_dt = from_dt + timedelta(hours=24)
-                        to_date = to_dt.strftime("%Y-%m-%dT%H:%M:%S")
-                        logger.info(f"Adjusted to_date to respect 24-hour limit: {to_date}")
+                        logger.warning(f"Date range exceeds 24-hour limit: {time_diff.total_seconds()} seconds")
+                        return {"error": "Date range cannot exceed 24 hours (86400 seconds)"}
                 except ValueError as e:
                     logger.error(f"Error parsing dates: {e}")
                     return {"error": f"Invalid date format: {e}"}
             
-            # Format dates if provided (Capital.com expects YYYY-MM-DDTHH:MM:SS format, not ISO with timezone)
-            if from_date and from_date.endswith('Z'):
-                from_date = from_date[:-1]  # Remove 'Z' timezone indicator
-            if to_date and to_date.endswith('Z'):
-                to_date = to_date[:-1]  # Remove 'Z' timezone indicator
-            if from_date and '+' in from_date:
-                from_date = from_date.split('+')[0]  # Remove timezone offset
-            if to_date and '+' in to_date:
-                to_date = to_date.split('+')[0]  # Remove timezone offset
-            
-            params = {
-                "from": from_date,
-                "to": to_date
-            }
+            # lastPeriod support (not applicable if date range specified, max 86400 seconds)
+            if last_period and not (from_date or to_date):
+                if last_period > 86400:
+                    logger.warning(f"lastPeriod too large: {last_period} seconds. API limit is 86400 seconds (24 hours)")
+                    return {"error": "lastPeriod cannot exceed 86400 seconds (24 hours)"}
+                params["lastPeriod"] = last_period
+                logger.info(f"Using lastPeriod of {last_period} seconds")
+            elif last_period and (from_date or to_date):
+                logger.warning("lastPeriod ignored when date range is specified (per API documentation)")
             
             if detailed:
                 params["detailed"] = str(detailed).lower()
+            if deal_id:
+                params["dealId"] = deal_id
             if filter_type:
                 params["filter"] = filter_type
-            if page_size and page_size != 20:  # Only add if different from default
-                params["pageSize"] = page_size
                 
             logger.info(f"Getting activity history with params: {params}")
             response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/history/activity", params=params)
@@ -855,15 +857,22 @@ class CapitalClient:
                 result["_metadata"] = {
                     "requested_from": from_date,
                     "requested_to": to_date,
+                    "last_period_seconds": last_period if not (from_date or to_date) else None,
                     "total_activities": len(result.get("activities", [])),
-                    "page_size": page_size,
+                    "deal_id_filter": deal_id,
                     "filter_applied": filter_type,
                     "detailed_mode": detailed,
-                    "api_note": "API requires date range parameters to return data"
+                    "api_note": "Supports both date ranges (max 24h) and lastPeriod (max 86400s)"
                 }
                 
                 if not result.get("activities"):
-                    result["_info"] = f"No activities found between {from_date} and {to_date}. This could be normal for new accounts or accounts with no recent trading activity in this time range."
+                    if from_date and to_date:
+                        result["_info"] = f"No activities found between {from_date} and {to_date}. This could be normal for accounts with no trading activity in this period."
+                    elif last_period:
+                        hours = last_period / 3600
+                        result["_info"] = f"No activities found in the last {hours:.1f} hours. This could be normal for accounts with no recent trading activity."
+                    else:
+                        result["_info"] = "No activities found in the default time range (last 10 minutes). This could be normal for accounts with no recent trading activity."
                     
                 return result
             else:

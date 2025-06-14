@@ -1205,29 +1205,30 @@ async def delete_working_order(
 @mcp.tool()
 async def get_activity_history(
     ctx: Context,
-    from_date: Optional[str] = Field(default=None, description="Start date in format YYYY-MM-DDTHH:MM:SS (e.g., '2024-01-01T00:00:00'). If not provided, defaults to 24 hours ago."),
-    to_date: Optional[str] = Field(default=None, description="End date in format YYYY-MM-DDTHH:MM:SS. MUST be within 24 hours of from_date (API enforces 1-day max range). If not provided, defaults to now."),
-    detailed: bool = Field(default=False, description="Whether to include detailed information"),
-    filter_type: Optional[str] = Field(default=None, description="Filter by activity type. Use 'POSITION' to filter position-related activities."),
-    page_size: int = Field(default=20, description="Maximum number of results to return (tested up to 100)")
+    from_date: Optional[str] = Field(default=None, description="Start date in format YYYY-MM-DDTHH:MM:SS (e.g., '2024-01-01T00:00:00'). Max 24-hour range if to_date also provided."),
+    to_date: Optional[str] = Field(default=None, description="End date in format YYYY-MM-DDTHH:MM:SS. Must be within 24 hours of from_date if both provided."),
+    last_period: Optional[int] = Field(default=None, description="Time period in seconds to look back (e.g., 3600 for 1 hour, 86400 for 24 hours). Max 86400 seconds. Not applicable if date range specified."),
+    detailed: bool = Field(default=False, description="Whether to include detailed information (adds market names, prices, stop/profit levels)"),
+    deal_id: Optional[str] = Field(default=None, description="Filter by specific deal ID to show activities for a particular position"),
+    filter_type: Optional[str] = Field(default=None, description="FIQL filter string (e.g., 'type==POSITION' for position activities only). Supports: epic, source, status, type.")
 ) -> Dict[str, Any]:
-    """Get account activity history (REQUIRES date range - STRICT 1 day maximum).
+    """Get account activity history with flexible time filtering.
     
-    This tool retrieves trading activity history for your account. Based on testing, the API 
-    REQUIRES a date range to return data and ENFORCES a maximum 1-day (24 hour) range.
-    
-    CRITICAL LIMITATIONS:
-    - API returns 400 error if date range exceeds 24 hours
-    - Date range parameters are REQUIRED (returns empty without them)
-    - Tool will auto-adjust to_date if range exceeds 24 hours
+    This tool retrieves trading activity history. Based on real-world testing:
+    - lastPeriod works reliably (max 86400 seconds = 24 hours)
+    - Date ranges are documented but may have implementation issues in current API version
+    - detailed=true adds comprehensive information including market names and price levels
+    - deal_id filtering works for specific position activities
+    - FIQL filtering supports various activity types
     
     Args:
         ctx: MCP context
-        from_date: Start date (defaults to 24 hours ago if not provided)
-        to_date: End date (MUST be ≤24 hours from from_date, auto-adjusted if too large)
-        detailed: Whether to include detailed information (both true/false provide same detail level)
-        filter_type: Activity filter - 'POSITION' works, but may still show WORKING_ORDER entries
-        page_size: Number of results to return (default 20, tested up to 100)
+        from_date: Start date (optional, for date range queries)
+        to_date: End date (optional, max 24h from from_date)
+        last_period: Seconds to look back (max 86400, ignored if date range provided)
+        detailed: Include detailed activity information
+        deal_id: Filter by specific position/deal ID
+        filter_type: FIQL filter for activity types/status
         
     Returns:
         Dict[str, Any]: Account activity history with metadata
@@ -1247,7 +1248,7 @@ async def get_activity_history(
                 await ctx.error(error_msg)
                 return {"error": error_msg}
         
-        result = client.get_activity_history(from_date, to_date, detailed, filter_type, page_size)
+        result = client.get_activity_history(from_date, to_date, last_period, detailed, deal_id, filter_type)
         return result
     
     except Exception as e:

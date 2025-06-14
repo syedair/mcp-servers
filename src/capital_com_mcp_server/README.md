@@ -37,7 +37,7 @@ The following tools are exposed by the MCP server:
 - `delete_working_order`: Cancel and remove working orders
 
 ### History & Reporting
-- `get_activity_history`: Get trading activity history with automatic date range handling (24-hour max) and FIQL filtering
+- `get_activity_history`: Get trading activity history with lastPeriod support (max 24h), deal ID filtering, and FIQL filtering (date ranges documented but currently limited)
 - `get_transaction_history`: Get financial transaction history with full date range support and transaction type filtering (all parameters optional per API spec)
 - `confirm_deal`: Confirm position status after creation and get dealId for management
 
@@ -52,7 +52,7 @@ The following tools are exposed by the MCP server:
 - **Advanced Trading**: Create positions, working orders (stop/limit), manage portfolios
 - **Account Management**: Switch accounts, update leverage settings, manage preferences
 - **Market Discovery**: Navigate asset hierarchies, explore watchlists, search instruments
-- **Smart Historical Data**: Trading activity (24h automatic range) and transaction history (full date range support) with proper API compliance
+- **Smart Historical Data**: Trading activity (lastPeriod up to 24h) and transaction history (full date range support) with real-world tested functionality
 - **Enhanced Search**: Search markets by name or use specific epic codes (e.g., "Apple" or "AAPL")
 - **Multiple Time Resolutions**: MINUTE, HOUR, DAY, WEEK for price data
 - **Position Confirmation**: Verify trades and get deal IDs for position management
@@ -206,7 +206,7 @@ You: Show me my trading activity from the last 24 hours with detailed informatio
 
 AI: I'll get your detailed trading activity from the last 24 hours.
 
-[Uses get_activity_history with detailed=true]
+[Uses get_activity_history with last_period=86400, detailed=true]
 
 Trading activity (last 24 hours):
 - Position opened: AAPL BUY 10 shares at $184.30
