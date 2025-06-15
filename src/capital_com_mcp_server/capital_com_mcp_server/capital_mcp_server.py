@@ -536,21 +536,40 @@ async def close_position(
 async def update_position(
     ctx: Context,
     deal_id: str = Field(description="The deal ID of the position to update"),
-    stop_level: Optional[float] = Field(default=None, description="New stop loss level (optional)"),
-    profit_level: Optional[float] = Field(default=None, description="New take profit level (optional)"),
+    guaranteed_stop: Optional[bool] = Field(default=None, description="Must be true if a guaranteed stop is required (cannot be used with trailing_stop or hedging mode)"),
+    trailing_stop: Optional[bool] = Field(default=None, description="Must be true if a trailing stop is required (requires stop_distance, cannot be used with guaranteed_stop)"),
+    stop_level: Optional[float] = Field(default=None, description="Price level when a stop loss will be triggered"),
+    stop_distance: Optional[float] = Field(default=None, description="Distance between current and stop loss triggering price (required if trailing_stop is true)"),
+    stop_amount: Optional[float] = Field(default=None, description="Loss amount when a stop loss will be triggered"),
+    profit_level: Optional[float] = Field(default=None, description="Price level when a take profit will be triggered"),
+    profit_distance: Optional[float] = Field(default=None, description="Distance between current and take profit triggering price"),
+    profit_amount: Optional[float] = Field(default=None, description="Profit amount when a take profit will be triggered"),
 ) -> Dict[str, Any]:
-    """Update an existing trading position.
+    """Update an existing trading position with comprehensive stop/profit options.
 
-    This tool updates an existing position with new stop loss and/or take profit settings.
+    This tool updates an existing position with new stop loss and/or take profit settings,
+    including support for guaranteed stops, trailing stops, and various trigger methods.
     
     IMPORTANT: Use the dealId from get_positions, not the dealReference from create_position.
     The dealId is found in the position.position.dealId field when calling get_positions.
 
+    Parameter rules:
+    - guaranteed_stop and trailing_stop are mutually exclusive
+    - trailing_stop requires stop_distance to be set
+    - guaranteed_stop requires at least one of: stop_level, stop_distance, or stop_amount
+    - At least one parameter must be provided
+
     Args:
         ctx: MCP context
         deal_id: The deal ID of the position to update (from get_positions, not dealReference from create_position)
-        stop_level: New stop loss level (optional)
-        profit_level: New take profit level (optional)
+        guaranteed_stop: Must be true if a guaranteed stop is required (cannot be used with trailing_stop or hedging mode)
+        trailing_stop: Must be true if a trailing stop is required (requires stop_distance, cannot be used with guaranteed_stop)
+        stop_level: Price level when a stop loss will be triggered
+        stop_distance: Distance between current and stop loss triggering price (required if trailing_stop is true)
+        stop_amount: Loss amount when a stop loss will be triggered
+        profit_level: Price level when a take profit will be triggered
+        profit_distance: Distance between current and take profit triggering price
+        profit_amount: Profit amount when a take profit will be triggered
 
     Returns:
         Dict[str, Any]: Position update result
@@ -566,8 +585,30 @@ async def update_position(
         await ctx.error(validation_error)
         return {"error": validation_error}
     
-    if stop_level is None and profit_level is None:
-        validation_error = "At least one of stop_level or profit_level must be provided"
+    # Check if at least one parameter is provided
+    all_params = [guaranteed_stop, trailing_stop, stop_level, stop_distance, stop_amount, 
+                 profit_level, profit_distance, profit_amount]
+    if all(param is None for param in all_params):
+        validation_error = "At least one parameter must be provided"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    # Validate parameter combinations
+    if guaranteed_stop and trailing_stop:
+        validation_error = "Cannot set both guaranteed_stop and trailing_stop - they are mutually exclusive"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    if trailing_stop and not stop_distance:
+        validation_error = "stop_distance is required when trailing_stop is true"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    if guaranteed_stop and not (stop_level or stop_distance or stop_amount):
+        validation_error = "When guaranteed_stop is true, must set stop_level, stop_distance, or stop_amount"
         logger.error(validation_error)
         await ctx.error(validation_error)
         return {"error": validation_error}
@@ -581,7 +622,17 @@ async def update_position(
             logger.error(error_msg)
     
     try:
-        result = client.update_position(deal_id, stop_level, profit_level)
+        result = client.update_position(
+            deal_id=deal_id,
+            guaranteed_stop=guaranteed_stop,
+            trailing_stop=trailing_stop,
+            stop_level=stop_level,
+            stop_distance=stop_distance,
+            stop_amount=stop_amount,
+            profit_level=profit_level,
+            profit_distance=profit_distance,
+            profit_amount=profit_amount
+        )
         
         if "error" in result:
             await ctx.error(f"Failed to update position: {result['error']}")

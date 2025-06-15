@@ -14,7 +14,7 @@ The following tools are exposed by the MCP server:
 - `get_positions`: Get all open trading positions
 - `create_position`: Create a new trading position (buy/sell) with comprehensive stop/profit options including trailing stops
 - `close_position`: Close an open position by deal ID
-- `update_position`: Update position stop loss or take profit levels
+- `update_position`: Comprehensively update positions with guaranteed stops, trailing stops, and multiple trigger options
 - `get_watchlists`: Get all saved watchlists
 
 ### Session & Account Management
@@ -52,7 +52,7 @@ The following tools are exposed by the MCP server:
 
 - **Complete API Coverage**: Full access to all Capital.com REST API endpoints (26+ tools)
 - **Automatic Authentication**: Handles login and session token refresh automatically
-- **Advanced Trading**: Create positions with trailing stops, working orders (stop/limit), manage portfolios
+- **Advanced Trading**: Create positions with trailing stops, comprehensive position updates (guaranteed stops, trailing stops), working orders (stop/limit), manage portfolios
 - **Account Management**: Switch accounts, update leverage settings, manage preferences
 - **Market Discovery**: Navigate asset hierarchies, explore watchlists, search instruments
 - **Smart Historical Data**: Trading activity (lastPeriod up to 24h) and transaction history (full date range support) with real-world tested functionality
@@ -281,6 +281,29 @@ Available position creation options:
 - guaranteed_stop: Premium guaranteed stop loss (cannot be used with trailing stops)
 - stop_level/distance/amount: Multiple ways to set stop loss
 - profit_level/distance/amount: Multiple ways to set take profit
+```
+
+### Comprehensive Position Updates
+
+```
+You: Update my Apple position to add a trailing stop that's 10 points below the current price
+
+AI: I'll update your Apple position to add a trailing stop for better risk management.
+
+[Uses get_positions to find the dealId, then update_position with trailing_stop=true, stop_distance=10]
+
+Successfully updated Apple position:
+- Deal ID: DIAAAAE9DSMA
+- Added trailing stop: 10 points distance
+- The stop will automatically follow favorable price movements upward
+- Previous static stop has been replaced with trailing stop
+
+Position update options available:
+- guaranteed_stop: Premium guaranteed stop (cannot combine with trailing_stop)
+- trailing_stop: Automatic stop that follows price (requires stop_distance)
+- stop_level/distance/amount: Set stop loss in different ways
+- profit_level/distance/amount: Set take profit in different ways
+- All parameters are optional - update only what you need
 ```
 
 ## Prerequisites for using with LLMs
