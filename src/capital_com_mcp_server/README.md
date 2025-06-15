@@ -22,7 +22,7 @@ The following tools are exposed by the MCP server:
 - `change_financial_account`: Switch between different financial accounts
 - `get_accounts`: Get list of all financial accounts
 - `get_account_preferences`: Get account preferences including leverage settings and hedging mode
-- `update_account_preferences`: Update account preferences such as leverage settings
+- `update_account_preferences`: Update account preferences such as leverage settings (user-friendly parameters, no JSON required)
 - `top_up_demo_account`: Add funds to demo trading account for testing
 
 ### Market Navigation & Discovery
@@ -59,6 +59,7 @@ The following tools are exposed by the MCP server:
 - **Robust Error Handling**: Built-in retry logic for expired sessions
 - **No Manual Auth**: No separate authentication tool needed - handled behind the scenes
 - **API-Compliant Formatting**: Automatic timezone handling and proper date format conversion
+- **User-Friendly Preferences**: Update leverage settings with simple parameters (no JSON required)
 
 ## Configuration
 
@@ -193,10 +194,19 @@ AI: Let me check your account preferences and update the FOREX leverage.
 
 Current account preferences:
 - Hedging mode: Enabled
-- FOREX leverage: 30:1
-- STOCKS leverage: 5:1
+- CURRENCIES leverage: 30:1
+- SHARES leverage: 5:1
 
-Successfully updated FOREX leverage to 50:1.
+[Uses update_account_preferences with currencies_leverage=50]
+
+Successfully updated CURRENCIES (FOREX) leverage to 50:1.
+
+Available leverage categories:
+- currencies_leverage: For FOREX/currency pairs
+- cryptocurrencies_leverage: For crypto instruments
+- shares_leverage: For stocks/equities
+- commodities_leverage: For commodities trading
+- indices_leverage: For market indices
 ```
 
 ### History and Transaction Queries

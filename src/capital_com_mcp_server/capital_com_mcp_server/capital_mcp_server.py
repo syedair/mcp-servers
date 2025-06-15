@@ -755,15 +755,28 @@ async def get_account_preferences(ctx: Context) -> Dict[str, Any]:
 @mcp.tool()
 async def update_account_preferences(
     ctx: Context,
-    preferences: str = Field(description="JSON string of preferences to update (e.g., '{\"hedgingMode\": true, \"leverages\": {\"FOREX\": 30}}')")
+    hedging_mode: Optional[bool] = Field(default=None, description="Enable/disable hedging mode (allows multiple positions in same instrument)"),
+    currencies_leverage: Optional[int] = Field(default=None, description="Leverage for CURRENCIES (FOREX) instruments (e.g., 30 for 30:1)"),
+    cryptocurrencies_leverage: Optional[int] = Field(default=None, description="Leverage for CRYPTOCURRENCIES instruments"),
+    commodities_leverage: Optional[int] = Field(default=None, description="Leverage for COMMODITIES instruments"),
+    shares_leverage: Optional[int] = Field(default=None, description="Leverage for SHARES/stocks instruments"),
+    indices_leverage: Optional[int] = Field(default=None, description="Leverage for INDICES instruments"),
+    preferences_json: Optional[str] = Field(default=None, description="Advanced: Raw JSON string for custom preferences (overrides individual parameters)")
 ) -> Dict[str, Any]:
     """Update account preferences including leverage settings and hedging mode.
     
     This tool updates account preferences such as leverage settings and hedging mode.
+    You can either use individual parameters for common settings or provide raw JSON for advanced use.
     
     Args:
         ctx: MCP context
-        preferences: JSON string of preferences to update
+        hedging_mode: Enable/disable hedging mode
+        currencies_leverage: Leverage for CURRENCIES (FOREX) (e.g., 30 for 30:1)
+        cryptocurrencies_leverage: Leverage for CRYPTOCURRENCIES
+        commodities_leverage: Leverage for COMMODITIES
+        shares_leverage: Leverage for SHARES/stocks
+        indices_leverage: Leverage for INDICES
+        preferences_json: Raw JSON for custom preferences (advanced)
         
     Returns:
         Dict[str, Any]: Result of preferences update
@@ -772,15 +785,48 @@ async def update_account_preferences(
     
     logger.info("Invoking update_account_preferences tool")
     
-    if not preferences or len(preferences.strip()) == 0:
-        validation_error = "Preferences cannot be empty"
-        logger.error(validation_error)
-        await ctx.error(validation_error)
-        return {"error": validation_error}
-    
     try:
-        # Parse JSON preferences
-        preferences_dict = json.loads(preferences)
+        # Build preferences dict from parameters
+        preferences_dict = {}
+        
+        # Use raw JSON if provided (advanced option)
+        if preferences_json:
+            try:
+                preferences_dict = json.loads(preferences_json)
+                logger.info(f"Using raw JSON preferences: {preferences_dict}")
+            except json.JSONDecodeError as e:
+                error_msg = f"Invalid JSON format in preferences_json: {str(e)}"
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        else:
+            # Build from individual parameters
+            if hedging_mode is not None:
+                preferences_dict["hedgingMode"] = hedging_mode
+            
+            # Build leverages object if any leverage is specified (using correct API parameter names)
+            leverages = {}
+            if currencies_leverage is not None:
+                leverages["CURRENCIES"] = currencies_leverage
+            if cryptocurrencies_leverage is not None:
+                leverages["CRYPTOCURRENCIES"] = cryptocurrencies_leverage
+            if commodities_leverage is not None:
+                leverages["COMMODITIES"] = commodities_leverage
+            if shares_leverage is not None:
+                leverages["SHARES"] = shares_leverage
+            if indices_leverage is not None:
+                leverages["INDICES"] = indices_leverage
+            
+            if leverages:
+                preferences_dict["leverages"] = leverages
+        
+        if not preferences_dict:
+            validation_error = "At least one preference parameter must be provided"
+            logger.error(validation_error)
+            await ctx.error(validation_error)
+            return {"error": validation_error}
+        
+        logger.info(f"Updating preferences with: {preferences_dict}")
         
         if not authenticated:
             logger.info("Not authenticated, attempting initial authentication")
@@ -795,11 +841,6 @@ async def update_account_preferences(
         result = client.update_account_preferences(preferences_dict)
         return result
     
-    except json.JSONDecodeError as e:
-        error_msg = f"Invalid JSON format: {str(e)}"
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        return {"error": error_msg}
     except Exception as e:
         error_msg = f"Error updating account preferences: {str(e)}"
         logger.error(error_msg, exc_info=True)
