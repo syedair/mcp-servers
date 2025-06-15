@@ -304,29 +304,47 @@ class CapitalClient:
         epic: str, 
         direction: str, 
         size: float, 
+        guaranteed_stop: Optional[bool] = None,
+        trailing_stop: Optional[bool] = None,
         stop_level: Optional[float] = None, 
+        stop_distance: Optional[float] = None,
+        stop_amount: Optional[float] = None,
         profit_level: Optional[float] = None,
-        leverage: Optional[float] = None,
-        guaranteed_stop: Optional[bool] = None
+        profit_distance: Optional[float] = None,
+        profit_amount: Optional[float] = None
     ) -> Dict[str, Any]:
         """
-        Create a new trading position
+        Create a new trading position with comprehensive stop/profit options
         
         Args:
             epic: The epic identifier for the instrument
             direction: Trade direction (BUY or SELL)
             size: Position size
-            stop_level: Stop loss level (optional)
-            profit_level: Take profit level (optional)
-            leverage: Leverage ratio (e.g., 20 for 20:1) (optional)
-            guaranteed_stop: Whether to use a guaranteed stop (optional)
+            guaranteed_stop: Must be true if a guaranteed stop is required (cannot be used with trailing_stop or hedging mode)
+            trailing_stop: Must be true if a trailing stop is required (requires stop_distance, cannot be used with guaranteed_stop)
+            stop_level: Price level when a stop loss will be triggered
+            stop_distance: Distance between current and stop loss triggering price (required if trailing_stop is true)
+            stop_amount: Loss amount when a stop loss will be triggered
+            profit_level: Price level when a take profit will be triggered
+            profit_distance: Distance between current and take profit triggering price
+            profit_amount: Profit amount when a take profit will be triggered
             
         Returns:
-            Dict[str, Any]: Position creation result
+            Dict[str, Any]: Position creation result with dealReference
         """
         if not self.account_id:
             logger.error("Not authenticated")
             return {"error": "Not authenticated"}
+        
+        # Validate parameter combinations per API rules
+        if guaranteed_stop and trailing_stop:
+            return {"error": "Cannot set both guaranteedStop and trailingStop - they are mutually exclusive"}
+        
+        if trailing_stop and not stop_distance:
+            return {"error": "stopDistance is required when trailingStop is true"}
+        
+        if guaranteed_stop and not (stop_level or stop_distance or stop_amount):
+            return {"error": "When guaranteedStop is true, must set stopLevel, stopDistance, or stopAmount"}
             
         try:
             url = f"{self.base_url}/api/v1/positions"
@@ -335,29 +353,60 @@ class CapitalClient:
             payload = {
                 "epic": epic,
                 "direction": direction,
-                "size": str(size),
+                "size": size,  # API expects number, not string
             }
             
-            if stop_level is not None:
-                payload["stopLevel"] = str(stop_level)
-                
-            if profit_level is not None:
-                payload["profitLevel"] = str(profit_level)
-                
-            if leverage is not None:
-                payload["leverage"] = str(leverage)
-                
+            # Stop loss parameters
             if guaranteed_stop is not None:
                 payload["guaranteedStop"] = guaranteed_stop
+                
+            if trailing_stop is not None:
+                payload["trailingStop"] = trailing_stop
+                
+            if stop_level is not None:
+                payload["stopLevel"] = stop_level
+                
+            if stop_distance is not None:
+                payload["stopDistance"] = stop_distance
+                
+            if stop_amount is not None:
+                payload["stopAmount"] = stop_amount
+                
+            # Take profit parameters
+            if profit_level is not None:
+                payload["profitLevel"] = profit_level
+                
+            if profit_distance is not None:
+                payload["profitDistance"] = profit_distance
+                
+            if profit_amount is not None:
+                payload["profitAmount"] = profit_amount
             
-            logger.debug(f"Creating position with payload: {payload}")
+            logger.info(f"Creating position with payload: {payload}")
             response = self._make_authenticated_request("POST", url, json=payload)
             
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                logger.info(f"Position creation response: {result}")
+                
+                # Add helpful metadata
+                if "dealReference" in result:
+                    result["_metadata"] = {
+                        "note": "Position created with dealReference (order reference with 'o_' prefix)",
+                        "next_steps": "Use get_positions() to find the actual dealId for position management",
+                        "trailing_stop_active": trailing_stop if trailing_stop else False,
+                        "guaranteed_stop_active": guaranteed_stop if guaranteed_stop else False
+                    }
+                
+                return result
             else:
-                logger.error(f"Failed to create position: {response.status_code} - {response.text}")
-                return {"error": f"Failed to create position: {response.status_code}"}
+                error_details = response.text
+                logger.error(f"Failed to create position: {response.status_code} - {error_details}")
+                return {
+                    "error": f"Failed to create position: {response.status_code}",
+                    "details": error_details,
+                    "attempted_payload": payload
+                }
                 
         except Exception as e:
             logger.error(f"Error creating position: {type(e).__name__}", exc_info=True)

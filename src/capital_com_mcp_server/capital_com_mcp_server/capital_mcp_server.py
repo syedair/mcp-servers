@@ -372,15 +372,19 @@ async def create_position(
     epic: str = Field(description="The epic identifier for the instrument"),
     direction: str = Field(description="Trade direction (BUY or SELL)"),
     size: float = Field(description="Position size"),
-    stop_level: Optional[float] = Field(default=None, description="Stop loss level (optional)"),
-    profit_level: Optional[float] = Field(default=None, description="Take profit level (optional)"),
-    leverage: Optional[float] = Field(default=None, description="Leverage ratio (e.g., 20 for 20:1) (optional)"),
-    guaranteed_stop: Optional[bool] = Field(default=None, description="Whether to use a guaranteed stop (optional)"),
+    guaranteed_stop: Optional[bool] = Field(default=None, description="Must be true if a guaranteed stop is required (cannot be used with trailing_stop or hedging mode)"),
+    trailing_stop: Optional[bool] = Field(default=None, description="Must be true if a trailing stop is required (requires stop_distance, cannot be used with guaranteed_stop)"),
+    stop_level: Optional[float] = Field(default=None, description="Price level when a stop loss will be triggered"),
+    stop_distance: Optional[float] = Field(default=None, description="Distance between current and stop loss triggering price (required if trailing_stop is true)"),
+    stop_amount: Optional[float] = Field(default=None, description="Loss amount when a stop loss will be triggered"),
+    profit_level: Optional[float] = Field(default=None, description="Price level when a take profit will be triggered"),
+    profit_distance: Optional[float] = Field(default=None, description="Distance between current and take profit triggering price"),
+    profit_amount: Optional[float] = Field(default=None, description="Profit amount when a take profit will be triggered"),
 ) -> Dict[str, Any]:
-    """Create a new trading position.
+    """Create a new trading position with comprehensive stop/profit options including trailing stops.
 
-    This tool creates a new trading position for the specified instrument.
-    Returns a 'dealReference' (order reference) upon successful creation.
+    This tool creates a new trading position with full Capital.com API support including trailing stops,
+    guaranteed stops, and multiple stop/profit configuration options.
 
     IMPORTANT WORKFLOW:
     1. This tool returns a 'dealReference' (order reference) upon successful creation
@@ -388,18 +392,36 @@ async def create_position(
        after creation and find the position with matching details (epic, size, direction)
     3. The dealId from get_positions is what you need for managing the position
 
+    STOP LOSS OPTIONS (mutually exclusive):
+    - guaranteed_stop: Cannot be used with trailing_stop or in hedging mode
+    - trailing_stop: Requires stop_distance, cannot be used with guaranteed_stop
+
+    STOP LOSS LEVELS (choose one):
+    - stop_level: Specific price level for stop loss
+    - stop_distance: Distance from current price (required for trailing stops)
+    - stop_amount: Specific loss amount
+
+    TAKE PROFIT LEVELS (choose one):
+    - profit_level: Specific price level for take profit
+    - profit_distance: Distance from current price
+    - profit_amount: Specific profit amount
+
     Args:
         ctx: MCP context
         epic: The epic identifier for the instrument
         direction: Trade direction (BUY or SELL)
         size: Position size
-        stop_level: Stop loss level (optional)
-        profit_level: Take profit level (optional)
-        leverage: Leverage ratio (e.g., 20 for 20:1) (optional)
-        guaranteed_stop: Whether to use a guaranteed stop (optional)
+        guaranteed_stop: Guaranteed stop loss (premium feature, cannot be used with trailing_stop)
+        trailing_stop: Trailing stop loss that follows price (requires stop_distance)
+        stop_level: Specific stop loss price level
+        stop_distance: Stop loss distance from current price (points)
+        stop_amount: Stop loss amount in account currency
+        profit_level: Specific take profit price level
+        profit_distance: Take profit distance from current price (points)
+        profit_amount: Take profit amount in account currency
 
     Returns:
-        Dict[str, Any]: Position creation result with dealReference (order reference).
+        Dict[str, Any]: Position creation result with dealReference and metadata about active features.
                        Use get_positions to obtain the dealId for position management.
     """
     global authenticated, client
@@ -436,7 +458,11 @@ async def create_position(
             return {"error": error_msg}
     
     try:
-        result = client.create_position(epic, direction, size, stop_level, profit_level, leverage, guaranteed_stop)
+        result = client.create_position(
+            epic, direction, size, guaranteed_stop, trailing_stop, 
+            stop_level, stop_distance, stop_amount, 
+            profit_level, profit_distance, profit_amount
+        )
         
         if "error" in result:
             error_msg = f"Error creating position: {result['error']}"

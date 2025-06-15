@@ -12,7 +12,7 @@ The following tools are exposed by the MCP server:
 - `get_prices`: Get current prices with configurable time resolution (MINUTE, HOUR, DAY, etc.)
 - `get_historical_prices`: Get historical price data with custom time ranges and resolution
 - `get_positions`: Get all open trading positions
-- `create_position`: Create a new trading position (buy/sell) with optional stop loss and take profit
+- `create_position`: Create a new trading position (buy/sell) with comprehensive stop/profit options including trailing stops
 - `close_position`: Close an open position by deal ID
 - `update_position`: Update position stop loss or take profit levels
 - `get_watchlists`: Get all saved watchlists
@@ -52,7 +52,7 @@ The following tools are exposed by the MCP server:
 
 - **Complete API Coverage**: Full access to all Capital.com REST API endpoints (26+ tools)
 - **Automatic Authentication**: Handles login and session token refresh automatically
-- **Advanced Trading**: Create positions, working orders (stop/limit), manage portfolios
+- **Advanced Trading**: Create positions with trailing stops, working orders (stop/limit), manage portfolios
 - **Account Management**: Switch accounts, update leverage settings, manage preferences
 - **Market Discovery**: Navigate asset hierarchies, explore watchlists, search instruments
 - **Smart Historical Data**: Trading activity (lastPeriod up to 24h) and transaction history (full date range support) with real-world tested functionality
@@ -156,17 +156,18 @@ Your Capital.com account information:
 ### Creating a Position
 
 ```
-You: Buy 10 shares of Apple stock
+You: Buy 10 shares of Apple stock with a trailing stop 5 points below the current price
 
-AI: I'll create a buy position for Apple stock on Capital.com.
+AI: I'll create a buy position for Apple stock with a trailing stop.
 
-[Uses create_position tool]
+[Uses create_position with trailing_stop=true, stop_distance=5]
 
 Successfully created a BUY position for Apple Inc. (AAPL):
-- Deal ID: DEF789012
+- Deal Reference: o_17a6e937-6947-4825-92f1-9c690df802a9
 - Size: 10 shares
-- Opening price: $184.30
-- Position status: OPEN
+- Trailing stop: Active (5 points distance)
+- Position status: CREATED
+- Note: Use get_positions() to find dealId for position management
 ```
 
 ### Creating Working Orders
@@ -257,6 +258,29 @@ Deposit transactions (last 7 days):
 - 2024-06-08: $500.00 deposit via credit card
 
 Total deposits: $1,500.00
+```
+
+### Advanced Position Creation with Trailing Stops
+
+```
+You: Create a Bitcoin position with trailing stop protection
+
+AI: I'll create a Bitcoin position with trailing stop for risk management.
+
+[Uses create_position with epic="BTCUSD", direction="BUY", size=0.1, trailing_stop=true, stop_distance=500]
+
+Successfully created Bitcoin position:
+- Epic: BTCUSD
+- Direction: BUY
+- Size: 0.1 BTC
+- Trailing stop: Active (500 points distance)
+- Features: Stop will automatically follow price movements upward
+
+Available position creation options:
+- trailing_stop: Automatic stop that follows favorable price movements
+- guaranteed_stop: Premium guaranteed stop loss (cannot be used with trailing stops)
+- stop_level/distance/amount: Multiple ways to set stop loss
+- profit_level/distance/amount: Multiple ways to set take profit
 ```
 
 ## Prerequisites for using with LLMs
