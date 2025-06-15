@@ -1478,6 +1478,55 @@ async def get_server_time(ctx: Context) -> Dict[str, Any]:
         await ctx.error(error_msg)
         return {"error": str(e)}
 
+# Market Information Tools
+@mcp.tool()
+async def get_client_sentiment(
+    ctx: Context,
+    market_ids: str = Field(description="Market identifier(s) - single market like 'SILVER' or comma-separated list like 'SILVER,NATURALGAS,BTCUSD'")
+) -> Dict[str, Any]:
+    """Get client sentiment for markets showing long vs short position percentages.
+    
+    This tool retrieves client sentiment data from Capital.com showing what percentage
+    of clients are holding long vs short positions for specified markets. This data
+    can be useful for contrarian trading strategies and market sentiment analysis.
+    
+    Args:
+        ctx: MCP context
+        market_ids: Market identifier(s) - single market or comma-separated list
+        
+    Returns:
+        Dict[str, Any]: Client sentiment data with long/short percentages and interpretations
+    """
+    global authenticated, client
+    
+    logger.info("Invoking get_client_sentiment tool")
+    
+    if not market_ids or len(market_ids.strip()) == 0:
+        validation_error = "market_ids cannot be empty"
+        logger.error(validation_error)
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+    
+    try:
+        if not authenticated:
+            logger.info("Not authenticated, attempting initial authentication")
+            auth_result = client.authenticate()
+            authenticated = auth_result
+            if not authenticated:
+                error_msg = "Authentication failed. Please check your Capital.com API credentials."
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"error": error_msg}
+        
+        result = client.get_client_sentiment(market_ids)
+        return result
+    
+    except Exception as e:
+        error_msg = f"Error getting client sentiment: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
 
 def main():
     """Run the MCP server with CLI argument support."""

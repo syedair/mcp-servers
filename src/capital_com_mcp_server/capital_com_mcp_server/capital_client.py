@@ -1061,3 +1061,69 @@ class CapitalClient:
         except Exception as e:
             logger.error(f"Error getting server time: {str(e)}")
             return {"error": str(e)}
+
+    # Market Information Methods
+    def get_client_sentiment(self, market_ids: Union[str, List[str]]) -> Dict[str, Any]:
+        """Get client sentiment for markets
+        
+        Args:
+            market_ids: Market identifier(s) - can be a single string or list of strings (e.g., "SILVER" or ["SILVER", "NATURALGAS"])
+            
+        Returns:
+            Dict containing client sentiment data with long/short position percentages for each market
+        """
+        try:
+            # Handle both single string and list of market IDs
+            if isinstance(market_ids, str):
+                market_ids_param = market_ids
+            elif isinstance(market_ids, list):
+                market_ids_param = ",".join(market_ids)
+            else:
+                return {"error": "market_ids must be a string or list of strings"}
+            
+            params = {"marketIds": market_ids_param}
+            logger.info(f"Getting client sentiment for markets: {market_ids_param}")
+            
+            response = self._make_authenticated_request("GET", f"{self.base_url}/api/v1/clientsentiment", params=params)
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"Client sentiment response: {result}")
+                
+                # Add metadata for better understanding
+                result["_metadata"] = {
+                    "requested_markets": market_ids_param,
+                    "total_markets": len(result.get("clientSentiments", [])),
+                    "api_note": "Percentages show proportion of clients holding long vs short positions"
+                }
+                
+                # Add helpful interpretation for each market
+                if "clientSentiments" in result:
+                    for sentiment in result["clientSentiments"]:
+                        long_pct = sentiment.get("longPositionPercentage", 0)
+                        short_pct = sentiment.get("shortPositionPercentage", 0)
+                        
+                        # Add interpretation
+                        if long_pct > 70:
+                            sentiment["_interpretation"] = "Strongly bullish sentiment - high proportion of long positions"
+                        elif long_pct > 60:
+                            sentiment["_interpretation"] = "Moderately bullish sentiment"
+                        elif long_pct > 40:
+                            sentiment["_interpretation"] = "Mixed sentiment - relatively balanced"
+                        elif long_pct > 30:
+                            sentiment["_interpretation"] = "Moderately bearish sentiment"
+                        else:
+                            sentiment["_interpretation"] = "Strongly bearish sentiment - high proportion of short positions"
+                
+                return result
+            else:
+                error_details = response.text
+                logger.error(f"Failed to get client sentiment: {response.status_code} - {error_details}")
+                return {
+                    "error": f"Failed to get client sentiment: {response.status_code}",
+                    "details": error_details,
+                    "requested_markets": market_ids_param
+                }
+        except Exception as e:
+            logger.error(f"Error getting client sentiment: {str(e)}")
+            return {"error": str(e)}

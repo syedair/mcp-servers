@@ -41,13 +41,16 @@ The following tools are exposed by the MCP server:
 - `get_transaction_history`: Get financial transaction history with full date range support and transaction type filtering (all parameters optional per API spec)
 - `confirm_deal`: Confirm position status after creation and get dealId for management
 
+### Market Information
+- `get_client_sentiment`: Get client sentiment data showing long vs short position percentages for markets
+
 ### Utilities
 - `ping_api`: Test connection to the Capital.com API
 - `get_server_time`: Get current server time from Capital.com API
 
 ## ✨ Key Features
 
-- **Complete API Coverage**: Full access to all Capital.com REST API endpoints (25+ tools)
+- **Complete API Coverage**: Full access to all Capital.com REST API endpoints (26+ tools)
 - **Automatic Authentication**: Handles login and session token refresh automatically
 - **Advanced Trading**: Create positions, working orders (stop/limit), manage portfolios
 - **Account Management**: Switch accounts, update leverage settings, manage preferences
@@ -207,6 +210,22 @@ Available leverage categories:
 - shares_leverage: For stocks/equities
 - commodities_leverage: For commodities trading
 - indices_leverage: For market indices
+```
+
+### Checking Market Sentiment
+
+```
+You: What's the client sentiment for Silver and Bitcoin?
+
+AI: I'll check the client sentiment for Silver and Bitcoin on Capital.com.
+
+[Uses get_client_sentiment with market_ids="SILVER,BTCUSD"]
+
+Client sentiment data:
+- SILVER: 91.85% long, 8.15% short (Strongly bullish sentiment)
+- BTCUSD: 62.97% long, 37.03% short (Moderately bullish sentiment)
+
+This suggests most traders are bullish on both assets, with Silver showing particularly strong bullish sentiment.
 ```
 
 ### History and Transaction Queries
