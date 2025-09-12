@@ -8,8 +8,7 @@ services:
     #   context: ..
     #   dockerfile: docker/Dockerfile
     container_name: capital-mcp-server
-    ports:
-      - "8080:8080"
+    network_mode: host
     environment:
       # Load from .env file
       - CAPITAL_BASE_URL=${CAPITAL_BASE_URL}
@@ -18,17 +17,11 @@ services:
       - CAPITAL_IDENTIFIER=${CAPITAL_IDENTIFIER}
       - CAPITAL_MCP_DEBUG=${CAPITAL_MCP_DEBUG:-0}
       - HOST=0.0.0.0
-      - PORT=8080
+      - PORT=8088
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     logging:
       driver: "json-file"
       options:
