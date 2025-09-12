@@ -1653,8 +1653,8 @@ def main():
     # Run server with appropriate transport
     if args.streamable_http:
         logger.info(f'Using streamable HTTP transport on port {args.port}')
-        mcp.settings.port = args.port
-        mcp.run(transport='streamable-http')
+        # Bind to all interfaces for Docker container accessibility
+        mcp.run(transport='streamable-http', host='0.0.0.0', port=args.port)
     elif args.sse:
         logger.info(f'Using SSE transport on port {args.port}')
         mcp.settings.port = args.port
