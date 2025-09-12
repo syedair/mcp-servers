@@ -39,7 +39,6 @@ if os.environ.get("CAPITAL_MCP_DEBUG", "0") == "1":
 # Initialize FastMCP
 mcp = FastMCP(
     name="capital-com-mcp-server",
-    description="Capital.com MCP Server for trading operations",
     instructions="""
     # Capital.com MCP Server
 
