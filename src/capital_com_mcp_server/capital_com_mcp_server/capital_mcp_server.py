@@ -1610,6 +1610,7 @@ def main():
         description='Capital.com Model Context Protocol (MCP) server'
     )
     parser.add_argument('--sse', action='store_true', help='Use SSE transport')
+    parser.add_argument('--streamable-http', action='store_true', help='Use streamable HTTP transport')
     parser.add_argument('--port', type=int, default=8080, help='Port to run the server on')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     parser.add_argument('--log-dir', type=str, help='Directory to store log files')
@@ -1650,7 +1651,11 @@ def main():
         logger.error(f"Error during startup authentication: {type(e).__name__}", exc_info=True)
 
     # Run server with appropriate transport
-    if args.sse:
+    if args.streamable_http:
+        logger.info(f'Using streamable HTTP transport on port {args.port}')
+        mcp.settings.port = args.port
+        mcp.run(transport='streamable-http')
+    elif args.sse:
         logger.info(f'Using SSE transport on port {args.port}')
         mcp.settings.port = args.port
         mcp.run(transport='sse')

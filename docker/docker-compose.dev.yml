@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  capital-mcp-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: capital-mcp-server-dev
+    ports:
+      - "8080:8080"
+    environment:
+      # Load from .env file
+      - CAPITAL_BASE_URL=${CAPITAL_BASE_URL}
+      - CAPITAL_API_KEY=${CAPITAL_API_KEY}
+      - CAPITAL_PASSWORD=${CAPITAL_PASSWORD}
+      - CAPITAL_IDENTIFIER=${CAPITAL_IDENTIFIER}
+      - CAPITAL_MCP_DEBUG=${CAPITAL_MCP_DEBUG:-1}
+      - HOST=0.0.0.0
+      - PORT=8080
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
