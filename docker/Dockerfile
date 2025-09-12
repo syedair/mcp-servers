@@ -25,4 +25,5 @@ EXPOSE $MCP_PORT
 
 # Run the MCP server using uvx with streamable HTTP transport
 # Port can be overridden with MCP_PORT environment variable in docker-compose
-CMD ["sh", "-c", "uvx capital-com-mcp-server --streamable-http --port ${MCP_PORT:-8080}"]
+# Bind to all interfaces (0.0.0.0) for better networking practices
+CMD ["sh", "-c", "uvx capital-com-mcp-server --streamable-http --port ${MCP_PORT:-8080} --host 0.0.0.0"]

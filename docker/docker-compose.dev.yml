@@ -14,8 +14,7 @@ services:
       - CAPITAL_PASSWORD=${CAPITAL_PASSWORD}
       - CAPITAL_IDENTIFIER=${CAPITAL_IDENTIFIER}
       - CAPITAL_MCP_DEBUG=${CAPITAL_MCP_DEBUG:-1}
-      - HOST=0.0.0.0
-      - PORT=8080
+      - MCP_PORT=8080
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data

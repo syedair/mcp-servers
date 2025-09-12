@@ -2,13 +2,15 @@ version: '3.8'
 
 services:
   capital-mcp-server:
-    image: ghcr.io/syedhumair/mcp-servers/capital-mcp-server:latest
+    image: ghcr.io/syedair/mcp-servers/capital-mcp-server:latest
+    ports:
+      - "8088:8088"
     # Uncomment below for local development/building
     # build:
     #   context: ..
     #   dockerfile: docker/Dockerfile
     container_name: capital-mcp-server
-    network_mode: host
+    # network_mode: host
     environment:
       # Load from .env file
       - CAPITAL_BASE_URL=${CAPITAL_BASE_URL}
@@ -16,8 +18,7 @@ services:
       - CAPITAL_PASSWORD=${CAPITAL_PASSWORD}
       - CAPITAL_IDENTIFIER=${CAPITAL_IDENTIFIER}
       - CAPITAL_MCP_DEBUG=${CAPITAL_MCP_DEBUG:-0}
-      - HOST=0.0.0.0
-      - PORT=8088
+      - MCP_PORT=8088
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
