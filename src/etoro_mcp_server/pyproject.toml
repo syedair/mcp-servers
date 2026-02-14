@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "etoro-mcp-server"
-version = "0.1.0"
+version = "0.2.0"
 description = "eToro MCP Server for Amazon Q, Claude Desktop and other LLMs"
 readme = "README.md"
 authors = [

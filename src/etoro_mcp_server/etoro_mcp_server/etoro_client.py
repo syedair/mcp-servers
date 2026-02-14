@@ -11,7 +11,11 @@ logger = logging.getLogger("etoro-client")
 
 class EtoroClient:
     """
-    Client for interacting with eToro's API
+    Client for interacting with eToro's Public API.
+
+    API Reference: https://api-portal.etoro.com/
+    Base URL: https://public-api.etoro.com
+    Auth: x-api-key + x-user-key + x-request-id headers
     """
 
     def __init__(self, base_url=None, api_key=None, user_key=None, account_type=None):
@@ -19,7 +23,7 @@ class EtoroClient:
         load_dotenv()
 
         # Get credentials from parameters or environment variables
-        self.base_url = base_url or os.getenv("ETORO_BASE_URL", "https://api.etoro.com")
+        self.base_url = base_url or os.getenv("ETORO_BASE_URL", "https://public-api.etoro.com")
         self.api_key = api_key or os.getenv("ETORO_API_KEY")
         self.user_key = user_key or os.getenv("ETORO_USER_KEY")
         self.account_type = account_type or os.getenv("ETORO_ACCOUNT_TYPE", "demo")
@@ -43,21 +47,11 @@ class EtoroClient:
             logger.setLevel(logging.DEBUG)
 
     def _generate_request_id(self) -> str:
-        """
-        Generate a unique UUID for x-request-id header
-
-        Returns:
-            str: UUID string
-        """
+        """Generate a unique UUID for x-request-id header"""
         return str(uuid.uuid4())
 
     def _get_headers(self) -> Dict[str, str]:
-        """
-        Get authentication headers for API requests
-
-        Returns:
-            Dict[str, str]: Headers dictionary with API keys and request ID
-        """
+        """Get authentication headers for API requests"""
         headers = {
             "Content-Type": "application/json",
             "x-request-id": self._generate_request_id()
@@ -71,34 +65,53 @@ class EtoroClient:
 
         return headers
 
-    def _get_endpoint_path(self, resource: str) -> str:
+    def _build_url(self, path: str) -> str:
         """
-        Build endpoint path based on account type (demo vs real)
+        Build full API URL from a path.
 
         Args:
-            resource: API resource path (e.g., "instruments/search")
+            path: Full API path (e.g., "/api/v1/market-data/search")
 
         Returns:
-            str: Full endpoint path
+            str: Full URL
         """
-        prefix = "/api/demo/v1" if self.account_type == "demo" else "/api/v1"
-        # Ensure resource doesn't start with /
-        resource = resource.lstrip("/")
-        return f"{prefix}/{resource}"
+        return f"{self.base_url}{path}"
 
-    def _make_request(self, method: str, resource: str, **kwargs) -> Dict[str, Any]:
+    def _get_trading_execution_path(self, resource: str) -> str:
         """
-        Make an authenticated API request
+        Build trading execution endpoint path based on account type.
+
+        Demo:  /api/v1/trading/execution/demo/{resource}
+        Real:  /api/v1/trading/execution/{resource}
+        """
+        if self.account_type == "demo":
+            return f"/api/v1/trading/execution/demo/{resource}"
+        return f"/api/v1/trading/execution/{resource}"
+
+    def _get_trading_info_path(self, resource: str) -> str:
+        """
+        Build trading info endpoint path based on account type.
+
+        Demo:  /api/v1/trading/info/demo/{resource}
+        Real:  /api/v1/trading/info/{resource}
+        """
+        if self.account_type == "demo":
+            return f"/api/v1/trading/info/demo/{resource}"
+        return f"/api/v1/trading/info/{resource}"
+
+    def _make_request(self, method: str, path: str, **kwargs) -> Dict[str, Any]:
+        """
+        Make an authenticated API request.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
-            resource: API resource path
+            path: Full API path (e.g., "/api/v1/market-data/search")
             **kwargs: Additional request parameters
 
         Returns:
             Dict[str, Any]: Response data or error dictionary
         """
-        url = f"{self.base_url}{self._get_endpoint_path(resource)}"
+        url = self._build_url(path)
         headers = self._get_headers()
 
         logger.debug(f"Making {method} request to {url}")
@@ -116,7 +129,6 @@ class EtoroClient:
                 try:
                     return response.json()
                 except ValueError:
-                    # Response has no content or is not JSON
                     return {"success": True}
             else:
                 logger.error(f"API request failed: {response.status_code} - {response.text}")
@@ -128,7 +140,7 @@ class EtoroClient:
 
     def validate_credentials(self) -> bool:
         """
-        Validate API credentials by making a lightweight API call
+        Validate API credentials by making a lightweight API call.
 
         Returns:
             bool: True if credentials are valid, False otherwise
@@ -138,8 +150,7 @@ class EtoroClient:
             return False
 
         try:
-            # Try to get account info as a lightweight test
-            result = self.get_account_info()
+            result = self.get_portfolio()
 
             if "error" in result:
                 logger.error(f"Credential validation failed: {result['error']}")
@@ -152,74 +163,143 @@ class EtoroClient:
             logger.error(f"Error validating credentials: {type(e).__name__}", exc_info=True)
             return False
 
-    # Account & Portfolio Methods
-    def get_account_info(self) -> Dict[str, Any]:
+    # =====================
+    # Portfolio & Account
+    # =====================
+
+    def get_portfolio(self) -> Dict[str, Any]:
         """
-        Get account information including balance, equity, and margin
+        Get comprehensive portfolio information including positions, orders, and account status.
+
+        Endpoint:
+          Demo: GET /api/v1/trading/info/demo/portfolio
+          Real: GET /api/v1/trading/info/portfolio
 
         Returns:
-            Dict[str, Any]: Account information
+            Dict[str, Any]: Portfolio data with clientPortfolio containing
+                positions, credit, orders, mirrors, bonusCredit
         """
         try:
-            logger.debug("Getting account info")
-            result = self._make_request("GET", "account/info")
+            path = self._get_trading_info_path("portfolio")
+            logger.debug("Getting portfolio")
+            result = self._make_request("GET", path)
 
             if "error" in result:
-                logger.error(f"Failed to get account info: {result['error']}")
+                logger.error(f"Failed to get portfolio: {result['error']}")
 
             return result
+
+        except Exception as e:
+            logger.error(f"Error getting portfolio: {type(e).__name__}", exc_info=True)
+            return {"error": f"Error getting portfolio: {str(e)}"}
+
+    def get_account_info(self) -> Dict[str, Any]:
+        """
+        Get account information (balance, credit) from portfolio endpoint.
+
+        Returns:
+            Dict[str, Any]: Account info extracted from portfolio
+        """
+        try:
+            result = self.get_portfolio()
+
+            if "error" in result:
+                return result
+
+            # Extract account info from portfolio response
+            portfolio = result.get("clientPortfolio", result)
+            account_info = {
+                "credit": portfolio.get("credit"),
+                "bonusCredit": portfolio.get("bonusCredit"),
+                "account_type": self.account_type,
+            }
+
+            return account_info
 
         except Exception as e:
             logger.error(f"Error getting account info: {type(e).__name__}", exc_info=True)
             return {"error": f"Error getting account info: {str(e)}"}
 
-    def get_portfolio_summary(self) -> Dict[str, Any]:
+    def get_positions(self) -> Dict[str, Any]:
         """
-        Get portfolio summary with allocation and performance
+        Get all open trading positions from portfolio endpoint.
 
         Returns:
-            Dict[str, Any]: Portfolio summary
+            Dict[str, Any]: Positions data
         """
         try:
-            logger.debug("Getting portfolio summary")
-            result = self._make_request("GET", "portfolio/summary")
+            result = self.get_portfolio()
 
             if "error" in result:
-                logger.error(f"Failed to get portfolio summary: {result['error']}")
+                return result
+
+            # Extract positions from portfolio response
+            portfolio = result.get("clientPortfolio", result)
+            positions = portfolio.get("positions", [])
+
+            return {"positions": positions}
+
+        except Exception as e:
+            logger.error(f"Error getting positions: {type(e).__name__}", exc_info=True)
+            return {"error": f"Error getting positions: {str(e)}"}
+
+    def get_pnl(self) -> Dict[str, Any]:
+        """
+        Get account PnL and portfolio details.
+
+        Endpoint:
+          Demo: GET /api/v1/trading/info/demo/pnl
+          Real: GET /api/v1/trading/info/pnl
+
+        Returns:
+            Dict[str, Any]: PnL and portfolio details
+        """
+        try:
+            path = self._get_trading_info_path("pnl")
+            logger.debug("Getting PnL")
+            result = self._make_request("GET", path)
+
+            if "error" in result:
+                logger.error(f"Failed to get PnL: {result['error']}")
 
             return result
 
         except Exception as e:
-            logger.error(f"Error getting portfolio summary: {type(e).__name__}", exc_info=True)
-            return {"error": f"Error getting portfolio summary: {str(e)}"}
+            logger.error(f"Error getting PnL: {type(e).__name__}", exc_info=True)
+            return {"error": f"Error getting PnL: {str(e)}"}
 
-    # Market Data Methods
-    def search_instruments(self, search_term: str = None, category: str = None, limit: int = 10) -> Dict[str, Any]:
+    # =====================
+    # Market Data
+    # =====================
+
+    def search_instruments(self, search_term: str = None, page_size: int = 10, page_number: int = 1) -> Dict[str, Any]:
         """
-        Search for tradeable instruments
+        Search for tradeable instruments.
+
+        Endpoint: GET /api/v1/market-data/search
 
         Args:
-            search_term: Search query (e.g., "Apple", "Bitcoin")
-            category: Filter by category (e.g., "stocks", "crypto", "currencies")
-            limit: Maximum number of results
+            search_term: Search text (e.g., "Apple", "BTC", "AAPL")
+            page_size: Number of results per page
+            page_number: Page number for pagination
 
         Returns:
-            Dict[str, Any]: Search results with instrument details
+            Dict[str, Any]: Search results with items array containing instrument details
         """
         try:
             params = {}
 
             if search_term:
-                params["q"] = search_term
+                params["searchText"] = search_term
 
-            if category:
-                params["category"] = category
+            if page_size:
+                params["pageSize"] = page_size
 
-            if limit:
-                params["limit"] = limit
+            if page_number:
+                params["pageNumber"] = page_number
 
             logger.debug(f"Searching instruments with params: {params}")
-            result = self._make_request("GET", "instruments/search", params=params)
+            result = self._make_request("GET", "/api/v1/market-data/search", params=params)
 
             if "error" in result:
                 logger.error(f"Failed to search instruments: {result['error']}")
@@ -230,23 +310,72 @@ class EtoroClient:
             logger.error(f"Error searching instruments: {type(e).__name__}", exc_info=True)
             return {"error": f"Error searching instruments: {str(e)}"}
 
-    def get_instrument_metadata(self, instrument_id: int) -> Dict[str, Any]:
+    def get_instrument_by_symbol(self, symbol: str) -> Dict[str, Any]:
         """
-        Get detailed metadata for a specific instrument
+        Resolve a ticker symbol to an eToro instrument ID.
+
+        Endpoint: GET /api/v1/market-data/search?internalSymbolFull={symbol}
 
         Args:
-            instrument_id: Instrument ID (integer)
+            symbol: Ticker symbol (e.g., "AAPL", "BTC", "EURUSD")
 
         Returns:
-            Dict[str, Any]: Instrument metadata including spread, trading hours, limits
+            Dict[str, Any]: Instrument details with instrumentId
         """
         try:
-            # Validate instrument_id
-            if not isinstance(instrument_id, int) or instrument_id <= 0:
-                return {"error": "instrument_id must be a positive integer"}
+            params = {"internalSymbolFull": symbol}
 
-            logger.debug(f"Getting metadata for instrument {instrument_id}")
-            result = self._make_request("GET", f"instruments/{instrument_id}/metadata")
+            logger.debug(f"Resolving symbol: {symbol}")
+            result = self._make_request("GET", "/api/v1/market-data/search", params=params)
+
+            if "error" in result:
+                logger.error(f"Failed to resolve symbol: {result['error']}")
+                return result
+
+            # Find exact match
+            items = result.get("items", [])
+            for item in items:
+                if item.get("internalSymbolFull", "").upper() == symbol.upper():
+                    return item
+
+            # Return first result if no exact match
+            if items:
+                return items[0]
+
+            return {"error": f"Instrument not found for symbol: {symbol}"}
+
+        except Exception as e:
+            logger.error(f"Error resolving symbol: {type(e).__name__}", exc_info=True)
+            return {"error": f"Error resolving symbol: {str(e)}"}
+
+    def get_instrument_metadata(self, instrument_ids: Union[int, List[int]]) -> Dict[str, Any]:
+        """
+        Get metadata for instruments including display names, exchange IDs, and classification.
+
+        Endpoint: GET /api/v1/market-data/instruments?instrumentIds={ids}
+
+        Args:
+            instrument_ids: Single instrument ID or list of instrument IDs
+
+        Returns:
+            Dict[str, Any]: Instrument metadata with instrumentDisplayDatas array
+        """
+        try:
+            if isinstance(instrument_ids, int):
+                id_list = [instrument_ids]
+            elif isinstance(instrument_ids, list):
+                id_list = instrument_ids
+            else:
+                return {"error": "instrument_ids must be an integer or list of integers"}
+
+            for inst_id in id_list:
+                if not isinstance(inst_id, int) or inst_id <= 0:
+                    return {"error": "All instrument IDs must be positive integers"}
+
+            params = {"instrumentIds": ",".join(str(i) for i in id_list)}
+
+            logger.debug(f"Getting metadata for instruments: {params}")
+            result = self._make_request("GET", "/api/v1/market-data/instruments", params=params)
 
             if "error" in result:
                 logger.error(f"Failed to get instrument metadata: {result['error']}")
@@ -259,16 +388,17 @@ class EtoroClient:
 
     def get_current_rates(self, instrument_ids: Union[int, List[int]]) -> Dict[str, Any]:
         """
-        Get current real-time bid/ask prices for instruments
+        Get current real-time bid/ask prices for instruments.
+
+        Endpoint: GET /api/v1/market-data/instruments/rates?instrumentIds={ids}
 
         Args:
-            instrument_ids: Single instrument ID or list of instrument IDs
+            instrument_ids: Single instrument ID or list of instrument IDs (max 100)
 
         Returns:
             Dict[str, Any]: Current rates with bid/ask prices
         """
         try:
-            # Convert single ID to list
             if isinstance(instrument_ids, int):
                 id_list = [instrument_ids]
             elif isinstance(instrument_ids, list):
@@ -276,16 +406,17 @@ class EtoroClient:
             else:
                 return {"error": "instrument_ids must be an integer or list of integers"}
 
-            # Validate all IDs are positive integers
             for inst_id in id_list:
                 if not isinstance(inst_id, int) or inst_id <= 0:
                     return {"error": "All instrument IDs must be positive integers"}
 
-            # Convert to comma-separated string
-            ids_param = ",".join(str(id) for id in id_list)
+            if len(id_list) > 100:
+                return {"error": "Maximum 100 instrument IDs per request"}
+
+            ids_param = ",".join(str(i) for i in id_list)
 
             logger.debug(f"Getting current rates for instruments: {ids_param}")
-            result = self._make_request("GET", "rates/current", params={"instrumentIds": ids_param})
+            result = self._make_request("GET", "/api/v1/market-data/instruments/rates", params={"instrumentIds": ids_param})
 
             if "error" in result:
                 logger.error(f"Failed to get current rates: {result['error']}")
@@ -296,57 +427,40 @@ class EtoroClient:
             logger.error(f"Error getting current rates: {type(e).__name__}", exc_info=True)
             return {"error": f"Error getting current rates: {str(e)}"}
 
-    # Position Management Methods
-    def get_positions(self) -> Dict[str, Any]:
-        """
-        Get all open trading positions
-
-        Returns:
-            Dict[str, Any]: Open positions
-        """
-        try:
-            logger.debug("Getting positions")
-            result = self._make_request("GET", "positions")
-
-            if "error" in result:
-                logger.error(f"Failed to get positions: {result['error']}")
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Error getting positions: {type(e).__name__}", exc_info=True)
-            return {"error": f"Error getting positions: {str(e)}"}
+    # =====================
+    # Trading Execution
+    # =====================
 
     def create_position(
         self,
         instrument_id: int,
-        direction: str,
+        is_buy: bool,
         amount: float,
         leverage: int = 1,
-        stop_loss: Optional[float] = None,
-        take_profit: Optional[float] = None
+        stop_loss_rate: Optional[float] = None,
+        take_profit_rate: Optional[float] = None
     ) -> Dict[str, Any]:
         """
-        Create a new trading position
+        Create a new trading position (market order by amount).
+
+        Endpoint:
+          Demo: POST /api/v1/trading/execution/demo/market-open-orders/by-amount
+          Real: POST /api/v1/trading/execution/market-open-orders/by-amount
 
         Args:
             instrument_id: Instrument ID (integer)
-            direction: Trade direction ("BUY" or "SELL")
+            is_buy: True for long (BUY), False for short (SELL)
             amount: Investment amount in account currency
             leverage: Leverage multiplier (e.g., 1, 2, 5, 10, 20)
-            stop_loss: Stop loss price level (optional)
-            take_profit: Take profit price level (optional)
+            stop_loss_rate: Stop loss price level (optional)
+            take_profit_rate: Take profit price level (optional)
 
         Returns:
-            Dict[str, Any]: Position creation result with position_id
+            Dict[str, Any]: Order result with orderForOpen and token
         """
         try:
-            # Validate inputs
             if not isinstance(instrument_id, int) or instrument_id <= 0:
                 return {"error": "instrument_id must be a positive integer"}
-
-            if direction not in ["BUY", "SELL"]:
-                return {"error": "direction must be 'BUY' or 'SELL'"}
 
             if amount <= 0:
                 return {"error": "amount must be greater than 0"}
@@ -354,22 +468,22 @@ class EtoroClient:
             if leverage < 1:
                 return {"error": "leverage must be at least 1"}
 
-            # Build payload
             payload = {
-                "instrumentId": instrument_id,
-                "direction": direction,
-                "amount": amount,
-                "leverage": leverage
+                "InstrumentID": instrument_id,
+                "IsBuy": is_buy,
+                "Amount": amount,
+                "Leverage": leverage
             }
 
-            if stop_loss is not None:
-                payload["stopLoss"] = stop_loss
+            if stop_loss_rate is not None:
+                payload["StopLossRate"] = stop_loss_rate
 
-            if take_profit is not None:
-                payload["takeProfit"] = take_profit
+            if take_profit_rate is not None:
+                payload["TakeProfitRate"] = take_profit_rate
 
+            path = self._get_trading_execution_path("market-open-orders/by-amount")
             logger.info(f"Creating position: {payload}")
-            result = self._make_request("POST", "positions", json=payload)
+            result = self._make_request("POST", path, json=payload)
 
             if "error" in result:
                 logger.error(f"Failed to create position: {result['error']}")
@@ -382,22 +496,102 @@ class EtoroClient:
             logger.error(f"Error creating position: {type(e).__name__}", exc_info=True)
             return {"error": f"Error creating position: {str(e)}"}
 
-    def close_position(self, position_id: str) -> Dict[str, Any]:
+    def create_position_by_units(
+        self,
+        instrument_id: int,
+        is_buy: bool,
+        units: float,
+        leverage: int = 1,
+        stop_loss_rate: Optional[float] = None,
+        take_profit_rate: Optional[float] = None
+    ) -> Dict[str, Any]:
         """
-        Close an open trading position
+        Create a new trading position by specifying units.
+
+        Endpoint:
+          Demo: POST /api/v1/trading/execution/demo/market-open-orders/by-units
+          Real: POST /api/v1/trading/execution/market-open-orders/by-units
+
+        Args:
+            instrument_id: Instrument ID (integer)
+            is_buy: True for long (BUY), False for short (SELL)
+            units: Number of units to trade
+            leverage: Leverage multiplier
+            stop_loss_rate: Stop loss price level (optional)
+            take_profit_rate: Take profit price level (optional)
+
+        Returns:
+            Dict[str, Any]: Order result with orderForOpen and token
+        """
+        try:
+            if not isinstance(instrument_id, int) or instrument_id <= 0:
+                return {"error": "instrument_id must be a positive integer"}
+
+            if units <= 0:
+                return {"error": "units must be greater than 0"}
+
+            if leverage < 1:
+                return {"error": "leverage must be at least 1"}
+
+            payload = {
+                "InstrumentID": instrument_id,
+                "IsBuy": is_buy,
+                "Units": units,
+                "Leverage": leverage
+            }
+
+            if stop_loss_rate is not None:
+                payload["StopLossRate"] = stop_loss_rate
+
+            if take_profit_rate is not None:
+                payload["TakeProfitRate"] = take_profit_rate
+
+            path = self._get_trading_execution_path("market-open-orders/by-units")
+            logger.info(f"Creating position by units: {payload}")
+            result = self._make_request("POST", path, json=payload)
+
+            if "error" in result:
+                logger.error(f"Failed to create position: {result['error']}")
+            else:
+                logger.info(f"Position created successfully: {result}")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error creating position: {type(e).__name__}", exc_info=True)
+            return {"error": f"Error creating position: {str(e)}"}
+
+    def close_position(self, position_id: str, instrument_id: int, units_to_deduct: Optional[float] = None) -> Dict[str, Any]:
+        """
+        Close an open trading position (full or partial).
+
+        Endpoint:
+          Demo: POST /api/v1/trading/execution/demo/market-close-orders/positions/{positionId}
+          Real: POST /api/v1/trading/execution/market-close-orders/positions/{positionId}
 
         Args:
             position_id: Position ID to close
+            instrument_id: Instrument ID of the position
+            units_to_deduct: Units to close (null = close entire position)
 
         Returns:
-            Dict[str, Any]: Position closure result
+            Dict[str, Any]: Order result with orderForClose and token
         """
         try:
             if not position_id:
                 return {"error": "position_id cannot be empty"}
 
+            if not isinstance(instrument_id, int) or instrument_id <= 0:
+                return {"error": "instrument_id must be a positive integer"}
+
+            payload = {
+                "InstrumentId": instrument_id,
+                "UnitsToDeduct": units_to_deduct
+            }
+
+            path = self._get_trading_execution_path(f"market-close-orders/positions/{position_id}")
             logger.info(f"Closing position: {position_id}")
-            result = self._make_request("DELETE", f"positions/{position_id}")
+            result = self._make_request("POST", path, json=payload)
 
             if "error" in result:
                 logger.error(f"Failed to close position: {result['error']}")
@@ -410,49 +604,33 @@ class EtoroClient:
             logger.error(f"Error closing position: {type(e).__name__}", exc_info=True)
             return {"error": f"Error closing position: {str(e)}"}
 
-    def update_position(
-        self,
-        position_id: str,
-        stop_loss: Optional[float] = None,
-        take_profit: Optional[float] = None
-    ) -> Dict[str, Any]:
+    def get_order_info(self, order_id: str) -> Dict[str, Any]:
         """
-        Update stop loss and/or take profit for an existing position
+        Get order information and position details.
+
+        Endpoint:
+          Demo: GET /api/v1/trading/info/demo/orders/{orderId}
+          Real: GET /api/v1/trading/info/orders/{orderId}
 
         Args:
-            position_id: Position ID to update
-            stop_loss: New stop loss price level (optional)
-            take_profit: New take profit price level (optional)
+            order_id: Order ID to look up
 
         Returns:
-            Dict[str, Any]: Position update result
+            Dict[str, Any]: Order details with position information
         """
         try:
-            if not position_id:
-                return {"error": "position_id cannot be empty"}
+            if not order_id:
+                return {"error": "order_id cannot be empty"}
 
-            if stop_loss is None and take_profit is None:
-                return {"error": "At least one parameter (stop_loss or take_profit) must be provided"}
-
-            # Build payload
-            payload = {}
-
-            if stop_loss is not None:
-                payload["stopLoss"] = stop_loss
-
-            if take_profit is not None:
-                payload["takeProfit"] = take_profit
-
-            logger.info(f"Updating position {position_id}: {payload}")
-            result = self._make_request("PUT", f"positions/{position_id}", json=payload)
+            path = self._get_trading_info_path(f"orders/{order_id}")
+            logger.debug(f"Getting order info: {order_id}")
+            result = self._make_request("GET", path)
 
             if "error" in result:
-                logger.error(f"Failed to update position: {result['error']}")
-            else:
-                logger.info(f"Position updated successfully")
+                logger.error(f"Failed to get order info: {result['error']}")
 
             return result
 
         except Exception as e:
-            logger.error(f"Error updating position: {type(e).__name__}", exc_info=True)
-            return {"error": f"Error updating position: {str(e)}"}
+            logger.error(f"Error getting order info: {type(e).__name__}", exc_info=True)
+            return {"error": f"Error getting order info: {str(e)}"}
