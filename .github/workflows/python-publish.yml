@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        package: [capital_com_mcp_server]  # Add more packages here as you create them
+        package: [capital_com_mcp_server, etoro_mcp_server]  # Add more packages here as you create them
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +48,7 @@ jobs:
       - release-build
     strategy:
       matrix:
-        package: [capital_com_mcp_server]  # Add more packages here as you create them
+        package: [capital_com_mcp_server, etoro_mcp_server]  # Add more packages here as you create them
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
       id-token: write

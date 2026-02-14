@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "etoro-mcp-server"
+version = "0.1.0"
+description = "eToro MCP Server for Amazon Q, Claude Desktop and other LLMs"
+readme = "README.md"
+authors = [
+    {name = "Syed Humair", email = "your.email@example.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.25.0",
+    "fastmcp>=0.1.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=0.19.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/syedair/mcp-servers"
+"Bug Tracker" = "https://github.com/syedair/mcp-servers/issues"
+
+[project.scripts]
+etoro-mcp-server = "etoro_mcp_server.etoro_mcp_server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["etoro_mcp_server"]
