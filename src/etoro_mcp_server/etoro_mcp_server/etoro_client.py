@@ -140,17 +140,19 @@ class EtoroClient:
 
     def validate_credentials(self) -> bool:
         """
-        Validate API credentials by making a lightweight API call.
+        Validate API credentials by checking keys are present and making
+        a lightweight market data call.
 
         Returns:
             bool: True if credentials are valid, False otherwise
         """
         if not self.api_key or not self.user_key:
-            logger.error("Missing API credentials")
+            logger.error("Missing API credentials (ETORO_API_KEY and/or ETORO_USER_KEY not set)")
             return False
 
         try:
-            result = self.get_portfolio()
+            # Use a lightweight market data endpoint for validation
+            result = self._make_request("GET", "/api/v1/market-data/search", params={"pageSize": 1})
 
             if "error" in result:
                 logger.error(f"Credential validation failed: {result['error']}")

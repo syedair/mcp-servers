@@ -109,6 +109,18 @@ client = EtoroClient(
 credentials_valid = False
 
 
+def ensure_credentials() -> str | None:
+    """Lazy credential validation. Returns error message or None if valid."""
+    global credentials_valid
+    if credentials_valid:
+        return None
+
+    credentials_valid = client.validate_credentials()
+    if not credentials_valid:
+        return "API credentials not validated. Please check ETORO_API_KEY and ETORO_USER_KEY environment variables."
+    return None
+
+
 # =====================
 # Market Data Tools
 # =====================
@@ -128,15 +140,14 @@ async def search_instruments(
     Returns:
         Search results with items array containing instrumentId, displayname, symbol, etc.
     """
-    global credentials_valid, client
 
     logger.info(f"Invoking search_instruments tool: search_term={search_term}")
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.search_instruments(search_term, page_size, page_number)
 
@@ -165,15 +176,14 @@ async def resolve_symbol(
     Returns:
         Instrument details including instrumentId, displayname, internalSymbolFull
     """
-    global credentials_valid, client
 
     logger.info(f"Invoking resolve_symbol tool: symbol={symbol}")
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.get_instrument_by_symbol(symbol)
 
@@ -199,7 +209,6 @@ async def get_instrument_metadata(
     Returns:
         Instrument metadata with instrumentDisplayDatas array
     """
-    global credentials_valid, client
 
     logger.info(f"Invoking get_instrument_metadata tool: instrument_ids={instrument_ids}")
 
@@ -217,10 +226,10 @@ async def get_instrument_metadata(
         return {"error": validation_error}
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.get_instrument_metadata(id_list)
 
@@ -246,7 +255,6 @@ async def get_current_rates(
     Returns:
         Current rates with bid/ask prices for each instrument
     """
-    global credentials_valid, client
 
     logger.info(f"Invoking get_current_rates tool: instrument_ids={instrument_ids}")
 
@@ -264,10 +272,10 @@ async def get_current_rates(
         return {"error": validation_error}
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.get_current_rates(id_list)
 
@@ -294,15 +302,14 @@ async def get_account_info(ctx: Context) -> Dict[str, Any]:
     Returns:
         Account info with credit, bonusCredit, and account_type
     """
-    global credentials_valid, client
 
     logger.info("Invoking get_account_info tool")
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.get_account_info()
 
@@ -328,15 +335,14 @@ async def get_portfolio(ctx: Context) -> Dict[str, Any]:
     Returns:
         Portfolio data with clientPortfolio containing positions, credit, orders, mirrors
     """
-    global credentials_valid, client
 
     logger.info("Invoking get_portfolio tool")
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.get_portfolio()
 
@@ -362,15 +368,14 @@ async def get_positions(ctx: Context) -> Dict[str, Any]:
     Returns:
         Positions data with positions array
     """
-    global credentials_valid, client
 
     logger.info("Invoking get_positions tool")
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.get_positions()
 
@@ -412,7 +417,6 @@ async def create_position(
     Returns:
         Order result with orderForOpen (containing orderID, instrumentID, amount, etc.) and token
     """
-    global credentials_valid, client
 
     logger.info(f"Invoking create_position tool: instrument_id={instrument_id}, is_buy={is_buy}, amount={amount}")
 
@@ -433,10 +437,10 @@ async def create_position(
         return {"error": validation_error}
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.create_position(instrument_id, is_buy, amount, leverage, stop_loss_rate, take_profit_rate)
 
@@ -470,7 +474,6 @@ async def create_position_by_units(
     Returns:
         Order result with orderForOpen (containing orderID, instrumentID, units, etc.) and token
     """
-    global credentials_valid, client
 
     logger.info(f"Invoking create_position_by_units tool: instrument_id={instrument_id}, is_buy={is_buy}, units={units}")
 
@@ -491,10 +494,10 @@ async def create_position_by_units(
         return {"error": validation_error}
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.create_position_by_units(instrument_id, is_buy, units, leverage, stop_loss_rate, take_profit_rate)
 
@@ -527,7 +530,6 @@ async def close_position(
     Returns:
         Order result with orderForClose and token
     """
-    global credentials_valid, client
 
     logger.info(f"Invoking close_position tool: position_id={position_id}, instrument_id={instrument_id}")
 
@@ -543,10 +545,10 @@ async def close_position(
         return {"error": validation_error}
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.close_position(position_id, instrument_id, units_to_deduct)
 
@@ -575,7 +577,6 @@ async def get_order_info(
     Returns:
         Order details with execution status and position information
     """
-    global credentials_valid, client
 
     logger.info(f"Invoking get_order_info tool: order_id={order_id}")
 
@@ -585,10 +586,10 @@ async def get_order_info(
         return {"error": validation_error}
 
     try:
-        if not credentials_valid:
-            error_msg = "API credentials not validated. Please check your eToro API keys."
-            await ctx.error(error_msg)
-            return {"error": error_msg}
+        cred_error = ensure_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
 
         result = client.get_order_info(order_id)
 
