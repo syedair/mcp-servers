@@ -106,18 +106,10 @@ client = EtoroClient(
     user_key=os.environ.get("ETORO_USER_KEY", ""),
     account_type=os.environ.get("ETORO_ACCOUNT_TYPE", "demo")
 )
-credentials_valid = False
-
-
-def ensure_credentials() -> str | None:
-    """Lazy credential validation. Returns error message or None if valid."""
-    global credentials_valid
-    if credentials_valid:
-        return None
-
-    credentials_valid = client.validate_credentials()
-    if not credentials_valid:
-        return "API credentials not validated. Please check ETORO_API_KEY and ETORO_USER_KEY environment variables."
+def check_credentials() -> str | None:
+    """Check that API keys are configured. Returns error message or None."""
+    if not client.api_key or not client.user_key:
+        return "Missing credentials. Set ETORO_API_KEY and ETORO_USER_KEY environment variables."
     return None
 
 
@@ -144,7 +136,7 @@ async def search_instruments(
     logger.info(f"Invoking search_instruments tool: search_term={search_term}")
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -180,7 +172,7 @@ async def resolve_symbol(
     logger.info(f"Invoking resolve_symbol tool: symbol={symbol}")
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -226,7 +218,7 @@ async def get_instrument_metadata(
         return {"error": validation_error}
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -272,7 +264,7 @@ async def get_current_rates(
         return {"error": validation_error}
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -306,7 +298,7 @@ async def get_account_info(ctx: Context) -> Dict[str, Any]:
     logger.info("Invoking get_account_info tool")
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -339,7 +331,7 @@ async def get_portfolio(ctx: Context) -> Dict[str, Any]:
     logger.info("Invoking get_portfolio tool")
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -372,7 +364,7 @@ async def get_positions(ctx: Context) -> Dict[str, Any]:
     logger.info("Invoking get_positions tool")
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -437,7 +429,7 @@ async def create_position(
         return {"error": validation_error}
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -494,7 +486,7 @@ async def create_position_by_units(
         return {"error": validation_error}
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -545,7 +537,7 @@ async def close_position(
         return {"error": validation_error}
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -586,7 +578,7 @@ async def get_order_info(
         return {"error": validation_error}
 
     try:
-        cred_error = ensure_credentials()
+        cred_error = check_credentials()
         if cred_error:
             await ctx.error(cred_error)
             return {"error": cred_error}
@@ -641,17 +633,6 @@ def main():
 
     # Log startup information
     logger.info('Starting eToro MCP Server')
-
-    # Validate credentials on startup
-    try:
-        global credentials_valid
-        credentials_valid = client.validate_credentials()
-        if credentials_valid:
-            logger.info("Successfully validated eToro API credentials on startup")
-        else:
-            logger.warning("Failed to validate eToro API credentials on startup")
-    except Exception as e:
-        logger.error(f"Error during startup credential validation: {type(e).__name__}", exc_info=True)
 
     # Run server with appropriate transport
     if args.streamable_http:
