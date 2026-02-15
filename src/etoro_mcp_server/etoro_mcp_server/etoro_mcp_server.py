@@ -194,13 +194,14 @@ async def resolve_symbol(
 @mcp.tool()
 async def get_instrument_metadata(
     ctx: Context,
-    instrument_ids: str = Field(description="Comma-separated instrument IDs (e.g., '1001' or '1001,2045')")
+    instrument_ids: Union[str, int] = Field(description="Comma-separated instrument IDs (e.g., '1001' or '1001,2045')")
 ) -> Dict[str, Any]:
     """Get metadata for instruments including display names, exchange IDs, and classification.
 
     Returns:
         Instrument metadata with instrumentDisplayDatas array
     """
+    instrument_ids = str(instrument_ids)
 
     logger.info(f"Invoking get_instrument_metadata tool: instrument_ids={instrument_ids}")
 
@@ -240,13 +241,14 @@ async def get_instrument_metadata(
 @mcp.tool()
 async def get_current_rates(
     ctx: Context,
-    instrument_ids: str = Field(description="Comma-separated instrument IDs (e.g., '1001' or '1001,2045,3078'). Max 100.")
+    instrument_ids: Union[str, int] = Field(description="Comma-separated instrument IDs (e.g., '1001' or '1001,2045,3078'). Max 100.")
 ) -> Dict[str, Any]:
     """Get current real-time bid/ask prices for instruments.
 
     Returns:
         Current rates with bid/ask prices for each instrument
     """
+    instrument_ids = str(instrument_ids)
 
     logger.info(f"Invoking get_current_rates tool: instrument_ids={instrument_ids}")
 
@@ -508,7 +510,7 @@ async def create_position_by_units(
 @mcp.tool()
 async def close_position(
     ctx: Context,
-    position_id: str = Field(description="Position ID to close (from get_positions)"),
+    position_id: Union[str, int] = Field(description="Position ID to close (from get_positions)"),
     instrument_id: int = Field(description="Instrument ID of the position (from get_positions)"),
     units_to_deduct: Optional[float] = Field(default=None, description="Units to close. Omit or null to close entire position. Provide a value for partial close.")
 ) -> Dict[str, Any]:
@@ -522,6 +524,7 @@ async def close_position(
     Returns:
         Order result with orderForClose and token
     """
+    position_id = str(position_id)
 
     logger.info(f"Invoking close_position tool: position_id={position_id}, instrument_id={instrument_id}")
 
@@ -559,7 +562,7 @@ async def close_position(
 @mcp.tool()
 async def get_order_info(
     ctx: Context,
-    order_id: str = Field(description="Order ID to look up (from create_position response)")
+    order_id: Union[str, int] = Field(description="Order ID to look up (from create_position response)")
 ) -> Dict[str, Any]:
     """Get order information and position details for a specific order.
 
@@ -569,6 +572,7 @@ async def get_order_info(
     Returns:
         Order details with execution status and position information
     """
+    order_id = str(order_id)
 
     logger.info(f"Invoking get_order_info tool: order_id={order_id}")
 
