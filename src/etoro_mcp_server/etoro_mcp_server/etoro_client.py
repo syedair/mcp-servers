@@ -538,7 +538,7 @@ class EtoroClient:
             payload = {
                 "InstrumentID": instrument_id,
                 "IsBuy": is_buy,
-                "Units": units,
+                "AmountInUnits": units,
                 "Leverage": leverage
             }
 
