@@ -96,6 +96,52 @@ mcp = FastMCP(
     - Use `create_position_by_units` when: You want to open a position by unit count
     - Use `close_position` when: You want to close an existing position (full or partial)
     - Use `get_order_info` when: You need to check order execution status and resulting positions
+    - Use `get_historical_candles` when: You need OHLCV price history (charts, technical analysis)
+    - Use `get_closing_prices` when: You need closing prices for all instruments
+    - Use `get_instrument_types` when: You need available asset classes (stocks, ETFs, crypto, etc.)
+    - Use `get_pnl` when: You need account PnL and portfolio performance details
+    - Use `place_limit_order` when: You want to open a position at a specific target price (not market price)
+    - Use `cancel_order` when: You need to cancel a pending limit, open, or close order
+    - Use `get_watchlists` when: You need to see all your watchlists
+    - Use `create_watchlist` when: You want to create a new watchlist
+    - Use `delete_watchlist` when: You want to remove a watchlist permanently
+    - Use `add_watchlist_items` when: You want to add instruments to a watchlist
+    - Use `remove_watchlist_items` when: You want to remove instruments from a watchlist
+    - Use `rename_watchlist` when: You want to change a watchlist's name
+    - Use `get_user_profile` when: You need profile data for an eToro user
+    - Use `get_user_performance` when: You need gain/performance metrics for a user
+    - Use `get_user_trade_info` when: You need trading statistics for a user over a period
+    - Use `search_users` when: You want to discover traders by performance, risk, or popularity
+    - Use `get_user_feed` when: You want to read a user's social feed posts
+    - Use `get_instrument_feed` when: You want to read discussion posts about an instrument
+    - Use `create_post` when: You want to create a new discussion post
+    - Use `create_comment` when: You want to comment on an existing post
+
+    ## Limit Order Workflow
+
+    1. **Find Instrument**: Use `resolve_symbol` to get instrument ID
+    2. **Check Rates**: Use `get_current_rates` to see current price
+    3. **Place Order**: Use `place_limit_order` with a target rate (trigger price)
+    4. **Monitor**: Use `get_portfolio` to see pending orders
+    5. **Cancel**: Use `cancel_order` with order_type="limit" if you want to cancel
+
+    ## Watchlist Workflow
+
+    1. `get_watchlists` → see existing watchlists
+    2. `create_watchlist(name="My Stocks")` → create new
+    3. `add_watchlist_items(watchlist_id="...", instrument_ids="1001,2045")` → add instruments
+    4. `remove_watchlist_items(...)` → remove instruments
+    5. `rename_watchlist(...)` → rename
+    6. `delete_watchlist(...)` → delete
+
+    ## Social / Copy-Trading Research Workflow
+
+    1. `search_users` → discover traders by gain, risk score, period
+    2. `get_user_profile(username)` → view trader's profile
+    3. `get_user_performance(username)` → check historical gains
+    4. `get_user_trade_info(username, period)` → analyze trading stats
+    5. `get_user_feed(user_id)` → read their posts and insights
+    6. `get_instrument_feed(market_id)` → read discussions about an instrument
     """
 )
 
@@ -596,6 +642,888 @@ async def get_order_info(
 
     except Exception as e:
         error_msg = f"Error getting order info: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+# =====================
+# Additional Market Data Tools
+# =====================
+
+@mcp.tool()
+async def get_historical_candles(
+    ctx: Context,
+    instrument_id: int = Field(description="Instrument ID (integer). Get from search_instruments or resolve_symbol."),
+    interval: str = Field(default="OneDay", description="Candle interval: OneMinute, FiveMinutes, TenMinutes, FifteenMinutes, ThirtyMinutes, OneHour, FourHours, OneDay, OneWeek"),
+    candles_count: int = Field(default=100, description="Number of candles to retrieve (1-1000)"),
+    direction: str = Field(default="desc", description="Sort order: 'asc' (oldest first) or 'desc' (newest first)")
+) -> Dict[str, Any]:
+    """Get historical OHLCV candle data for an instrument.
+
+    Use for charting, technical analysis, and price history.
+
+    Returns:
+        Candle data with interval and candles array containing open, high, low, close, volume
+    """
+    logger.info(f"Invoking get_historical_candles tool: instrument_id={instrument_id}, interval={interval}")
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_historical_candles(instrument_id, interval, candles_count, direction)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting historical candles: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def get_closing_prices(ctx: Context) -> Dict[str, Any]:
+    """Get historical closing prices for all instruments.
+
+    Returns:
+        Closing prices data for all available instruments
+    """
+    logger.info("Invoking get_closing_prices tool")
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_closing_prices()
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting closing prices: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def get_instrument_types(ctx: Context) -> Dict[str, Any]:
+    """Get available instrument types (asset classes) such as stocks, ETFs, commodities, crypto, etc.
+
+    Returns:
+        Available instrument types/asset classes
+    """
+    logger.info("Invoking get_instrument_types tool")
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_instrument_types()
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting instrument types: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+# =====================
+# PnL Tool
+# =====================
+
+@mcp.tool()
+async def get_pnl(ctx: Context) -> Dict[str, Any]:
+    """Get account PnL (profit and loss) and portfolio performance details.
+
+    Returns:
+        PnL data including realized/unrealized gains and portfolio metrics
+    """
+    logger.info("Invoking get_pnl tool")
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_pnl()
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting PnL: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+# =====================
+# Limit Order & Cancel Tools
+# =====================
+
+@mcp.tool()
+async def place_limit_order(
+    ctx: Context,
+    instrument_id: int = Field(description="Instrument ID (integer). Get from search_instruments or resolve_symbol."),
+    is_buy: bool = Field(description="True for long/BUY, False for short/SELL"),
+    leverage: int = Field(description="Leverage multiplier (1, 2, 5, 10, 20, etc.)"),
+    rate: float = Field(description="Trigger price at which the market order will be sent"),
+    amount: Optional[float] = Field(default=None, description="Trade amount in USD. Provide either amount or amount_in_units, not both."),
+    amount_in_units: Optional[float] = Field(default=None, description="Number of units. Provide either amount or amount_in_units, not both."),
+    stop_loss_rate: Optional[float] = Field(default=None, description="Stop loss price level (optional)"),
+    take_profit_rate: Optional[float] = Field(default=None, description="Take profit price level (optional)"),
+    is_tsl_enabled: bool = Field(default=False, description="Enable trailing stop loss"),
+    is_no_stop_loss: bool = Field(default=False, description="Disable stop loss for this order"),
+    is_no_take_profit: bool = Field(default=False, description="Disable take profit for this order")
+) -> Dict[str, Any]:
+    """Place a Market-if-touched (limit) order to open a position when a target price is reached.
+
+    Unlike create_position (market order), this order waits until the instrument reaches
+    the specified rate before executing.
+
+    IMPORTANT: Provide either 'amount' (cash) or 'amount_in_units' (units), not both.
+
+    Returns:
+        Order result with confirmation token
+    """
+    logger.info(f"Invoking place_limit_order tool: instrument_id={instrument_id}, rate={rate}")
+
+    if amount is not None and amount_in_units is not None:
+        validation_error = "Provide either 'amount' or 'amount_in_units', not both"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    if amount is None and amount_in_units is None:
+        validation_error = "Must provide either 'amount' or 'amount_in_units'"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.place_limit_order(
+            instrument_id=instrument_id,
+            is_buy=is_buy,
+            leverage=leverage,
+            rate=rate,
+            amount=amount,
+            amount_in_units=amount_in_units,
+            stop_loss_rate=stop_loss_rate,
+            take_profit_rate=take_profit_rate,
+            is_tsl_enabled=is_tsl_enabled,
+            is_no_stop_loss=is_no_stop_loss,
+            is_no_take_profit=is_no_take_profit,
+        )
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error placing limit order: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def cancel_order(
+    ctx: Context,
+    order_id: Union[str, int] = Field(description="Order ID to cancel"),
+    order_type: str = Field(description="Type of order to cancel: 'limit' (market-if-touched), 'open' (market open order), or 'close' (market close order)")
+) -> Dict[str, Any]:
+    """Cancel a pending order before it is executed.
+
+    Supports cancelling three types of orders:
+    - 'limit': Cancel a Market-if-touched (limit) order
+    - 'open': Cancel a pending market order for opening a position
+    - 'close': Cancel a pending market order for closing a position
+
+    Returns:
+        Cancellation result
+    """
+    order_id = str(order_id)
+
+    logger.info(f"Invoking cancel_order tool: order_id={order_id}, order_type={order_type}")
+
+    if order_type not in ("limit", "open", "close"):
+        validation_error = "order_type must be 'limit', 'open', or 'close'"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    if not order_id or not order_id.strip():
+        validation_error = "order_id cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        if order_type == "limit":
+            result = client.cancel_limit_order(order_id)
+        elif order_type == "open":
+            result = client.cancel_open_order(order_id)
+        else:
+            result = client.cancel_close_order(order_id)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error cancelling order: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+# =====================
+# Watchlist Tools
+# =====================
+
+@mcp.tool()
+async def get_watchlists(ctx: Context) -> Dict[str, Any]:
+    """Get all watchlists for the authenticated user.
+
+    Returns:
+        Watchlists with their IDs, names, and items
+    """
+    logger.info("Invoking get_watchlists tool")
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_watchlists()
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting watchlists: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def create_watchlist(
+    ctx: Context,
+    name: str = Field(description="Name for the new watchlist (max 100 characters)")
+) -> Dict[str, Any]:
+    """Create a new watchlist.
+
+    Returns:
+        Created watchlist with its ID, name, and metadata
+    """
+    logger.info(f"Invoking create_watchlist tool: name={name}")
+
+    if not name or not name.strip():
+        validation_error = "name cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.create_watchlist(name)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error creating watchlist: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def delete_watchlist(
+    ctx: Context,
+    watchlist_id: Union[str, int] = Field(description="Watchlist ID to delete (from get_watchlists)")
+) -> Dict[str, Any]:
+    """Delete a watchlist and all its items permanently.
+
+    Returns:
+        Deletion confirmation
+    """
+    watchlist_id = str(watchlist_id)
+
+    logger.info(f"Invoking delete_watchlist tool: watchlist_id={watchlist_id}")
+
+    if not watchlist_id or not watchlist_id.strip():
+        validation_error = "watchlist_id cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.delete_watchlist(watchlist_id)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error deleting watchlist: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def add_watchlist_items(
+    ctx: Context,
+    watchlist_id: Union[str, int] = Field(description="Watchlist ID (from get_watchlists or create_watchlist)"),
+    instrument_ids: Union[str, int] = Field(description="Comma-separated instrument IDs to add (e.g., '1001,2045')")
+) -> Dict[str, Any]:
+    """Add instruments to an existing watchlist.
+
+    Returns:
+        Updated watchlist data
+    """
+    watchlist_id = str(watchlist_id)
+    instrument_ids = str(instrument_ids)
+
+    logger.info(f"Invoking add_watchlist_items tool: watchlist_id={watchlist_id}, instrument_ids={instrument_ids}")
+
+    try:
+        id_list = [int(id_str.strip()) for id_str in instrument_ids.split(",")]
+        for inst_id in id_list:
+            if inst_id <= 0:
+                validation_error = "All instrument IDs must be positive integers"
+                await ctx.error(validation_error)
+                return {"error": validation_error}
+    except ValueError:
+        validation_error = "instrument_ids must be comma-separated integers (e.g., '1001,2045')"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.add_watchlist_items(watchlist_id, id_list)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error adding watchlist items: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def remove_watchlist_items(
+    ctx: Context,
+    watchlist_id: Union[str, int] = Field(description="Watchlist ID (from get_watchlists)"),
+    instrument_ids: Union[str, int] = Field(description="Comma-separated instrument IDs to remove (e.g., '1001,2045')")
+) -> Dict[str, Any]:
+    """Remove instruments from a watchlist.
+
+    Returns:
+        Updated watchlist data
+    """
+    watchlist_id = str(watchlist_id)
+    instrument_ids = str(instrument_ids)
+
+    logger.info(f"Invoking remove_watchlist_items tool: watchlist_id={watchlist_id}, instrument_ids={instrument_ids}")
+
+    try:
+        id_list = [int(id_str.strip()) for id_str in instrument_ids.split(",")]
+        for inst_id in id_list:
+            if inst_id <= 0:
+                validation_error = "All instrument IDs must be positive integers"
+                await ctx.error(validation_error)
+                return {"error": validation_error}
+    except ValueError:
+        validation_error = "instrument_ids must be comma-separated integers (e.g., '1001,2045')"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.remove_watchlist_items(watchlist_id, id_list)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error removing watchlist items: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def rename_watchlist(
+    ctx: Context,
+    watchlist_id: Union[str, int] = Field(description="Watchlist ID to rename (from get_watchlists)"),
+    new_name: str = Field(description="New name for the watchlist (max 100 characters)")
+) -> Dict[str, Any]:
+    """Rename an existing watchlist.
+
+    Returns:
+        Rename confirmation
+    """
+    watchlist_id = str(watchlist_id)
+
+    logger.info(f"Invoking rename_watchlist tool: watchlist_id={watchlist_id}, new_name={new_name}")
+
+    if not new_name or not new_name.strip():
+        validation_error = "new_name cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.rename_watchlist(watchlist_id, new_name)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error renaming watchlist: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+# =====================
+# Users Info Tools
+# =====================
+
+@mcp.tool()
+async def get_user_profile(
+    ctx: Context,
+    username: str = Field(description="eToro username to look up")
+) -> Dict[str, Any]:
+    """Get comprehensive profile data for an eToro user.
+
+    Returns profile information including account status, verification levels,
+    biographical data, and metadata.
+
+    Returns:
+        User profile data
+    """
+    logger.info(f"Invoking get_user_profile tool: username={username}")
+
+    if not username or not username.strip():
+        validation_error = "username cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_user_profile(username)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting user profile: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def get_user_performance(
+    ctx: Context,
+    username: str = Field(description="eToro username to get performance for")
+) -> Dict[str, Any]:
+    """Get historical performance metrics and gain data for a user.
+
+    Returns monthly and yearly performance including gain percentages,
+    risk-adjusted returns, and trading statistics.
+
+    Returns:
+        User performance/gain data
+    """
+    logger.info(f"Invoking get_user_performance tool: username={username}")
+
+    if not username or not username.strip():
+        validation_error = "username cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_user_performance(username)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting user performance: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def get_user_trade_info(
+    ctx: Context,
+    username: str = Field(description="eToro username"),
+    period: str = Field(default="CurrMonth", description="Time period: CurrMonth, CurrQuarter, CurrYear, LastYear, LastTwoYears, OneMonthAgo, TwoMonthsAgo, ThreeMonthsAgo, SixMonthsAgo, OneYearAgo")
+) -> Dict[str, Any]:
+    """Get trading statistics for a specific user over a given time period.
+
+    Returns:
+        Trade info with statistics for the specified period
+    """
+    logger.info(f"Invoking get_user_trade_info tool: username={username}, period={period}")
+
+    if not username or not username.strip():
+        validation_error = "username cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    valid_periods = [
+        "CurrMonth", "CurrQuarter", "CurrYear", "LastYear",
+        "LastTwoYears", "OneMonthAgo", "TwoMonthsAgo",
+        "ThreeMonthsAgo", "SixMonthsAgo", "OneYearAgo"
+    ]
+    if period not in valid_periods:
+        validation_error = f"period must be one of: {', '.join(valid_periods)}"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_user_trade_info(username, period)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting user trade info: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def search_users(
+    ctx: Context,
+    period: str = Field(default="CurrMonth", description="Time period for metrics: CurrMonth, CurrQuarter, CurrYear, LastYear, LastTwoYears, OneMonthAgo, TwoMonthsAgo, ThreeMonthsAgo, SixMonthsAgo, OneYearAgo"),
+    gain_min: Optional[int] = Field(default=None, description="Minimum gain percentage filter"),
+    gain_max: Optional[int] = Field(default=None, description="Maximum gain percentage filter"),
+    risk_score_min: Optional[int] = Field(default=None, description="Minimum daily risk score filter"),
+    risk_score_max: Optional[int] = Field(default=None, description="Maximum daily risk score filter"),
+    popular_investor: Optional[bool] = Field(default=None, description="Filter for Popular Investors only"),
+    page_size: int = Field(default=10, description="Results per page"),
+    page: int = Field(default=1, description="Page number")
+) -> Dict[str, Any]:
+    """Search and discover eToro users/traders with performance and risk filters.
+
+    Use this for copy-trading research to find traders by gain, risk profile, and popularity.
+
+    Returns:
+        Search results with user profiles matching the filters
+    """
+    logger.info(f"Invoking search_users tool: period={period}, page={page}")
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.search_users(
+            period=period,
+            gain_min=gain_min,
+            gain_max=gain_max,
+            risk_score_min=risk_score_min,
+            risk_score_max=risk_score_max,
+            popular_investor=popular_investor,
+            page_size=page_size,
+            page=page,
+        )
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error searching users: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+# =====================
+# Feed Tools
+# =====================
+
+@mcp.tool()
+async def get_user_feed(
+    ctx: Context,
+    user_id: Union[str, int] = Field(description="User ID to get feed for"),
+    take: int = Field(default=20, description="Number of posts to retrieve (1-100)"),
+    offset: int = Field(default=0, description="Number of posts to skip for pagination")
+) -> Dict[str, Any]:
+    """Get social feed posts for a specific eToro user.
+
+    Returns the user's discussions, analyses, and other posted content.
+
+    Returns:
+        Feed posts with content, comments, and engagement metrics
+    """
+    user_id = str(user_id)
+
+    logger.info(f"Invoking get_user_feed tool: user_id={user_id}")
+
+    if not user_id or not user_id.strip():
+        validation_error = "user_id cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_user_feed(user_id, take, offset)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting user feed: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def get_instrument_feed(
+    ctx: Context,
+    market_id: Union[str, int] = Field(description="Instrument/market ID to get feed for"),
+    take: int = Field(default=20, description="Number of posts to retrieve (1-100)"),
+    offset: int = Field(default=0, description="Number of posts to skip for pagination")
+) -> Dict[str, Any]:
+    """Get social feed posts about a specific financial instrument.
+
+    Returns discussions, analyses, and content related to the instrument.
+
+    Returns:
+        Feed posts with content, comments, and engagement metrics
+    """
+    market_id = str(market_id)
+
+    logger.info(f"Invoking get_instrument_feed tool: market_id={market_id}")
+
+    if not market_id or not market_id.strip():
+        validation_error = "market_id cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.get_instrument_feed(market_id, take, offset)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error getting instrument feed: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def create_post(
+    ctx: Context,
+    owner: int = Field(description="User ID of the post owner"),
+    message: str = Field(description="Text content of the discussion post"),
+    tags: Optional[str] = Field(default=None, description="Optional JSON string of tags object for tagging instruments/markets"),
+    mentions: Optional[str] = Field(default=None, description="Optional JSON string of mentions object for referencing users")
+) -> Dict[str, Any]:
+    """Create a new discussion post in the eToro social feed.
+
+    Returns:
+        Created post with metadata and timestamps
+    """
+    logger.info(f"Invoking create_post tool: owner={owner}")
+
+    if not message or not message.strip():
+        validation_error = "message cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    tags_dict = None
+    mentions_dict = None
+
+    if tags:
+        try:
+            tags_dict = json.loads(tags)
+        except json.JSONDecodeError:
+            validation_error = "tags must be a valid JSON string"
+            await ctx.error(validation_error)
+            return {"error": validation_error}
+
+    if mentions:
+        try:
+            mentions_dict = json.loads(mentions)
+        except json.JSONDecodeError:
+            validation_error = "mentions must be a valid JSON string"
+            await ctx.error(validation_error)
+            return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.create_post(owner, message, tags_dict, mentions_dict)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error creating post: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def create_comment(
+    ctx: Context,
+    post_id: Union[str, int] = Field(description="Post ID to comment on"),
+    owner: int = Field(description="User ID of the comment author"),
+    message: str = Field(description="Text content of the comment")
+) -> Dict[str, Any]:
+    """Create a comment on an existing discussion post.
+
+    Returns:
+        Created comment with metadata
+    """
+    post_id = str(post_id)
+
+    logger.info(f"Invoking create_comment tool: post_id={post_id}, owner={owner}")
+
+    if not post_id or not post_id.strip():
+        validation_error = "post_id cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    if not message or not message.strip():
+        validation_error = "message cannot be empty"
+        await ctx.error(validation_error)
+        return {"error": validation_error}
+
+    try:
+        cred_error = check_credentials()
+        if cred_error:
+            await ctx.error(cred_error)
+            return {"error": cred_error}
+
+        result = client.create_comment(post_id, owner, message)
+
+        if "error" in result:
+            await ctx.error(result["error"])
+
+        return result
+
+    except Exception as e:
+        error_msg = f"Error creating comment: {str(e)}"
         logger.error(error_msg, exc_info=True)
         await ctx.error(error_msg)
         return {"error": str(e)}
