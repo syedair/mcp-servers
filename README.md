@@ -10,6 +10,14 @@ This repository contains a collection of [Model Context Protocol (MCP)](https://
   - Create and manage trading positions
   - Access watchlists
 
+- [eToro MCP Server](src/etoro_mcp_server/README.md): Exposes the eToro trading API as MCP tools for trading operations
+  - Search for instruments by name, symbol, or category
+  - Get account information (balance, equity, margin)
+  - Get and manage open trading positions
+  - Create positions with leverage, stop loss, and take profit
+  - Get real-time bid/ask prices for instruments
+  - Access detailed instrument metadata (trading hours, spreads, limits)
+
 ## What is MCP?
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) is an open protocol that standardizes how applications provide context to LLMs. MCP enables communication between the system and locally running MCP servers that provide additional tools and resources to extend LLM capabilities.
@@ -38,6 +46,16 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
            "CAPITAL_IDENTIFIER": "your_email@example.com",
            "FASTMCP_LOG_LEVEL": "ERROR"
          }
+       },
+       "etoro-mcp-server": {
+         "command": "uvx",
+         "args": ["etoro-mcp-server"],
+         "env": {
+           "ETORO_API_KEY": "your_public_app_key_here",
+           "ETORO_USER_KEY": "your_user_key_here",
+           "ETORO_ACCOUNT_TYPE": "demo",
+           "FASTMCP_LOG_LEVEL": "ERROR"
+         }
        }
      }
    }
@@ -53,7 +71,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ## Using with Claude Desktop
 
 1. In Claude Desktop, go to Settings > Developer section and click on "Edit Config"
-   
+
 2. This will open the configuration file. Add the following to the JSON:
    ```json
    {
@@ -68,6 +86,16 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
            "CAPITAL_IDENTIFIER": "your_email@example.com",
            "FASTMCP_LOG_LEVEL": "ERROR"
          }
+       },
+       "etoro-mcp-server": {
+         "command": "uvx",
+         "args": ["etoro-mcp-server"],
+         "env": {
+           "ETORO_API_KEY": "your_public_app_key_here",
+           "ETORO_USER_KEY": "your_user_key_here",
+           "ETORO_ACCOUNT_TYPE": "demo",
+           "FASTMCP_LOG_LEVEL": "ERROR"
+         }
        }
      }
    }
@@ -75,7 +103,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 3. Save the file and restart Claude Desktop.
 
-## Example Conversation
+## Example Conversations
+
+### Capital.com
 
 ```
 You: Search for Apple stock on Capital.com
@@ -94,6 +124,45 @@ I found Apple Inc. (AAPL) on Capital.com. Here are the details:
 Would you like me to get more information about this stock or perform any trading operations?
 ```
 
+### eToro
+
+```
+You: Search for Apple stock on eToro
+
+AI: I'll search for Apple stock on eToro for you.
+
+[Uses search_instruments tool with search_term="Apple"]
+
+I found Apple Inc. on eToro. Here are the details:
+- Instrument ID: 1001
+- Name: Apple Inc.
+- Symbol: AAPL
+- Category: Stocks
+- Current price: $184.25
+- Market status: OPEN
+
+Note: The instrument ID (1001) is what you'll need for trading operations.
+```
+
+```
+You: Buy $1000 worth of Bitcoin with 2x leverage and set a stop loss at $60,000
+
+AI: I'll create a Bitcoin position with your specified parameters.
+
+[Uses search_instruments to find Bitcoin instrument ID, then create_position]
+
+Successfully created a BUY position for Bitcoin:
+- Position ID: pos_abc123
+- Instrument ID: 2045 (Bitcoin)
+- Amount: $1,000
+- Leverage: 2x
+- Stop loss: $60,000
+- Status: OPEN
+- Current P&L: $0.00
+
+The position is now active and being monitored.
+```
+
 ## Repository Structure
 
 Each MCP server is organized as a separate Python package under the `src/` directory:
@@ -105,19 +174,18 @@ mcp-servers/
     ├── capital_com_mcp_server/
     │   ├── README.md
     │   ├── pyproject.toml
-    │   ├── setup.py
     │   ├── capital_com_mcp_server/
     │   │   ├── __init__.py
     │   │   ├── capital_mcp_server.py
     │   │   └── capital_client.py
     │   └── ...
-    └── other_mcp_server/
+    └── etoro_mcp_server/
         ├── README.md
         ├── pyproject.toml
-        ├── setup.py
-        ├── other_mcp_server/
+        ├── etoro_mcp_server/
         │   ├── __init__.py
-        │   └── ...
+        │   ├── etoro_mcp_server.py
+        │   └── etoro_client.py
         └── ...
 ```
 
@@ -149,7 +217,7 @@ To add a new package to the publishing workflow, update the matrix in `.github/w
 ```yaml
 strategy:
   matrix:
-    package: [capital_com_mcp_server, your_new_mcp_server]
+    package: [capital_com_mcp_server, etoro_mcp_server]
 ```
 
 ## Resources
