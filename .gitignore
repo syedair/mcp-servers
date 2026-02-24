@@ -1,8 +1,6 @@
 # Environment variables
 .env
 *.env
-reference_docs
-CLAUDE.md
 # Python
 __pycache__/
 *.py[cod]
